@@ -420,11 +420,28 @@ def build_interaction_matrix(interactions, n_users, n_items):
     return matrix
 
 
-@st.cache_resource(show_spinner="Loading similarity matrices...")
-def load_similarity_matrices(item_similarity_path, content_similarity_path):
-    item_sim = np.load(item_similarity_path, mmap_mode="r")
-    content_sim = np.load(content_similarity_path, mmap_mode="r")
-    return item_sim, content_sim
+@st.cache_data(show_spinner="Loading top similarities...")
+def load_top_similarities(item_top_path, content_top_path):
+    item_top = pd.read_csv(item_top_path)
+    content_top = pd.read_csv(content_top_path)
+
+    item_top_dict = {
+        int(row["item_id"]): (
+            [int(x) for x in str(row["similar_items"]).split()],
+            [float(x) for x in str(row["similar_scores"]).split()]
+        )
+        for _, row in item_top.iterrows()
+    }
+
+    content_top_dict = {
+        int(row["item_id"]): (
+            [int(x) for x in str(row["similar_items"]).split()],
+            [float(x) for x in str(row["similar_scores"]).split()]
+        )
+        for _, row in content_top.iterrows()
+    }
+
+    return item_top_dict, content_top_dict
 
 
 def get_title_column(items):
@@ -580,6 +597,52 @@ def get_book_labels(items, title_col, author_col=None):
 
     book_labels["label"] = book_labels.apply(make_label, axis=1)
     return book_labels
+
+def recommend_for_new_user_light(liked_item_ids, item_top_dict, content_top_dict, items, top_k=10, alpha=0.5):
+    """
+    Lightweight new-user recommender for Streamlit Cloud.
+
+    Instead of loading the full dense similarity matrices,
+    it uses precomputed top similar items for each selected book.
+    """
+
+    liked_item_ids = [int(i) for i in liked_item_ids]
+    liked_set = set(liked_item_ids)
+
+    scores = {}
+
+    for liked_id in liked_item_ids:
+
+        # Item-item collaborative similarity neighbors
+        if liked_id in item_top_dict:
+            neighbor_ids, neighbor_scores = item_top_dict[liked_id]
+
+            for item_id, score in zip(neighbor_ids, neighbor_scores):
+                if item_id not in liked_set:
+                    scores[item_id] = scores.get(item_id, 0) + alpha * score
+
+        # Content-based similarity neighbors
+        if liked_id in content_top_dict:
+            neighbor_ids, neighbor_scores = content_top_dict[liked_id]
+
+            for item_id, score in zip(neighbor_ids, neighbor_scores):
+                if item_id not in liked_set:
+                    scores[item_id] = scores.get(item_id, 0) + (1 - alpha) * score
+
+    if len(scores) == 0:
+        return pd.DataFrame()
+
+    top_items = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:top_k]
+
+    recs = pd.DataFrame({
+        "rank": range(1, len(top_items) + 1),
+        "item_id": [x[0] for x in top_items],
+        "score": [x[1] for x in top_items]
+    })
+
+    recs = enrich_with_items(recs, items, "item_id")
+    return recs
+
 
 
 def display_book_cards(df, title_col=None, author_col=None, score_col=None, max_items=20):
@@ -740,13 +803,13 @@ recommendations_path = st.sidebar.text_input(
 )
 
 item_similarity_path = st.sidebar.text_input(
-    "Item similarity path",
-    "NPYs/UI-item_similarity.npy"
+    "Top item similarities path",
+    "kaggle_data/top_item_similarities.csv"
 )
 
 content_similarity_path = st.sidebar.text_input(
-    "Content similarity path",
-    "NPYs/UI-content_similarity.npy"
+    "Top content similarities path",
+    "kaggle_data/top_content_similarities.csv"
 )
 
 new_user_alpha = st.sidebar.slider(
@@ -818,13 +881,13 @@ matrix = build_interaction_matrix(
 )
 
 try:
-    item_sim, content_sim = load_similarity_matrices(
+    item_top_dict, content_top_dict = load_top_similarities(
         item_similarity_path,
         content_similarity_path
     )
 except FileNotFoundError:
     st.error(
-        "Similarity matrix file not found. Check that the NPY files exist in the NPYs folder."
+        "Top similarity file not found. Check that the CSV files exist in kaggle_data."
     )
     st.stop()
 
@@ -880,7 +943,7 @@ with st.container():
 
     visitor_name = st.text_input(
         "Your name",
-        placeholder="e.g. Michalis "
+        placeholder="e.g. streamlit run UI_ML.pyMichalis "
     )
 
     user_type = st.radio(
@@ -1109,10 +1172,10 @@ with st.container():
                     f"Welcome {display_name}! Here are your personalized recommendations."
                 )
 
-                new_user_recs = recommend_for_new_user(
+                new_user_recs = recommend_for_new_user_light(
                     liked_item_ids=liked_item_ids,
-                    item_sim=item_sim,
-                    content_sim=content_sim,
+                    item_top_dict=item_top_dict,
+                    content_top_dict=content_top_dict,
                     items=items,
                     top_k=top_k,
                     alpha=new_user_alpha
@@ -1273,18 +1336,21 @@ with tab_i:
     )
 
     # ------------------------------------------------------------
-    # Compute similar items
+    # Compute similar items using lightweight top similarities
     # ------------------------------------------------------------
-    sim_scores = item_sim[int(i)].copy()
-    sim_scores[int(i)] = -np.inf
+    if int(i) in item_top_dict:
+        top_items, top_scores = item_top_dict[int(i)]
 
-    top_items = np.argsort(sim_scores)[-10:][::-1]
+        top_items = top_items[:10]
+        top_scores = top_scores[:10]
 
-    similar_items_df = pd.DataFrame({
-        "rank": range(1, len(top_items) + 1),
-        "item_id": top_items,
-        "similarity_score": sim_scores[top_items]
-    })
+        similar_items_df = pd.DataFrame({
+            "rank": range(1, len(top_items) + 1),
+            "item_id": top_items,
+            "similarity_score": top_scores
+        })
+    else:
+        similar_items_df = pd.DataFrame()
 
     similar_items_df = enrich_with_items(similar_items_df, items, "item_id")
 
