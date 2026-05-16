@@ -943,7 +943,7 @@ with st.container():
 
     visitor_name = st.text_input(
         "Your name",
-        placeholder="e.g. streamlit run UI_ML.pyMichalis "
+        placeholder="e.g.Michalis "
     )
 
     user_type = st.radio(
