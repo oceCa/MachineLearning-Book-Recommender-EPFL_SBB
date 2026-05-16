@@ -408,16 +408,39 @@ def load_data(items_path, interactions_path, recommendations_path, clean_items_p
 
     return items, interactions, recommendations, clean_items, descriptions
 
-def create_data_matrix(data, n_users, n_items):
-    matrix = np.zeros((n_users, n_items))
-    matrix[data["u"].values, data["i"].values] = 1
-    return matrix
+
+@st.cache_data(show_spinner="Building lightweight interaction lookup...")
+def build_interaction_lookup(interactions):
+    """
+    Lightweight replacement for the dense user-item matrix.
+    This avoids creating a huge users x items matrix on Streamlit Cloud.
+    """
+
+    seen_by_user = (
+        interactions
+        .groupby("u")["i"]
+        .apply(lambda x: set(x.astype(int)))
+        .to_dict()
+    )
+
+    popularity_df = (
+        interactions
+        .groupby("i")
+        .size()
+        .reset_index(name="number_of_interactions")
+        .rename(columns={"i": "item_id"})
+        .sort_values("number_of_interactions", ascending=False)
+        .reset_index(drop=True)
+    )
+
+    return seen_by_user, popularity_df
 
 
-@st.cache_data(show_spinner="Building interaction matrix...")
-def build_interaction_matrix(interactions, n_users, n_items):
-    matrix = create_data_matrix(interactions, n_users, n_items)
-    return matrix
+def get_seen_items_light(user_id, seen_by_user, items):
+    seen_items = list(seen_by_user.get(int(user_id), set()))
+    seen_df = pd.DataFrame({"item_id": seen_items})
+    seen_df = enrich_with_items(seen_df, items, "item_id")
+    return seen_df
 
 
 @st.cache_data(show_spinner="Loading top similarities...")
@@ -482,28 +505,37 @@ def merge_clean_metadata(items, clean_items):
             break
 
     cols_to_merge = ["i"]
+
     if clean_title_col is not None:
         cols_to_merge.append(clean_title_col)
+
     if clean_author_col is not None:
         cols_to_merge.append(clean_author_col)
 
     clean_subset = clean_items[cols_to_merge].copy()
 
     rename_dict = {}
+
     if clean_title_col is not None:
         rename_dict[clean_title_col] = "Title_clean"
+
     if clean_author_col is not None:
         rename_dict[clean_author_col] = "Author_clean"
 
     clean_subset = clean_subset.rename(columns=rename_dict)
 
     items = items.merge(clean_subset, on="i", how="left")
+
     return items
 
 
 def enrich_with_items(df, items, item_col="item_id"):
-    if "i" in items.columns:
+    if df.empty:
+        return df
+
+    if "i" in items.columns and item_col in df.columns:
         return df.merge(items, left_on=item_col, right_on="i", how="left")
+
     return df
 
 
@@ -524,56 +556,8 @@ def get_recommendations_from_csv(user_id, recommendations_df, items, top_k):
     recs = enrich_with_items(recs, items, "item_id")
     recs = recs.head(top_k).reset_index(drop=True)
     recs["rank"] = range(1, len(recs) + 1)
+
     return recs
-
-
-def recommend_for_new_user(liked_item_ids, item_sim, content_sim, items, top_k=10, alpha=0.5):
-    """
-    Recommend books for a new user using:
-    - item-item collaborative similarity
-    - content-based similarity
-
-    liked_item_ids:
-        list of item IDs selected by the new user
-
-    alpha:
-        weight given to item-item similarity.
-        1-alpha is the weight given to content similarity.
-    """
-
-    liked_item_ids = [int(i) for i in liked_item_ids]
-    n_items = item_sim.shape[0]
-
-    user_vector = np.zeros(n_items, dtype=np.float32)
-    user_vector[liked_item_ids] = 1.0
-
-    item_scores = user_vector.dot(item_sim) / (np.abs(item_sim).sum(axis=1) + 1e-9)
-    content_scores = user_vector.dot(content_sim) / (np.abs(content_sim).sum(axis=1) + 1e-9)
-
-    final_scores = alpha * item_scores + (1 - alpha) * content_scores
-
-    # Do not recommend books already selected by the new user
-    final_scores[liked_item_ids] = -np.inf
-
-    top_items = np.argsort(final_scores)[-top_k:][::-1]
-
-    recs = pd.DataFrame({
-        "rank": range(1, len(top_items) + 1),
-        "item_id": top_items,
-        "score": final_scores[top_items],
-        "item_score": item_scores[top_items],
-        "content_score": content_scores[top_items]
-    })
-
-    recs = enrich_with_items(recs, items, "item_id")
-    return recs
-
-
-def get_seen_items(user_id, matrix, items):
-    seen_items = np.where(matrix[int(user_id)] == 1)[0]
-    seen_df = pd.DataFrame({"item_id": seen_items})
-    seen_df = enrich_with_items(seen_df, items, "item_id")
-    return seen_df
 
 
 def get_book_labels(items, title_col, author_col=None):
@@ -581,6 +565,7 @@ def get_book_labels(items, title_col, author_col=None):
         return None
 
     cols = ["i", title_col]
+
     if author_col is not None and author_col in items.columns:
         cols.append(author_col)
 
@@ -588,21 +573,25 @@ def get_book_labels(items, title_col, author_col=None):
 
     def make_label(row):
         title = str(row[title_col])
+
         author = (
             str(row[author_col])
             if author_col and author_col in row and pd.notna(row[author_col])
             else "Unknown author"
         )
-        return f"{row['i']} - {title} — {author}"
+
+        return f"{int(row['i'])} - {title} — {author}"
 
     book_labels["label"] = book_labels.apply(make_label, axis=1)
+
     return book_labels
+
 
 def recommend_for_new_user_light(liked_item_ids, item_top_dict, content_top_dict, items, top_k=10, alpha=0.5):
     """
     Lightweight new-user recommender for Streamlit Cloud.
 
-    Instead of loading the full dense similarity matrices,
+    Instead of loading full dense similarity matrices,
     it uses precomputed top similar items for each selected book.
     """
 
@@ -641,8 +630,8 @@ def recommend_for_new_user_light(liked_item_ids, item_top_dict, content_top_dict
     })
 
     recs = enrich_with_items(recs, items, "item_id")
-    return recs
 
+    return recs
 
 
 def display_book_cards(df, title_col=None, author_col=None, score_col=None, max_items=20):
@@ -678,6 +667,7 @@ def display_book_cards(df, title_col=None, author_col=None, score_col=None, max_
                 )
 
                 score_text = ""
+
                 if score_col and score_col in row and pd.notna(row[score_col]):
                     if score_col == "number_of_interactions":
                         score_text = f"{int(row[score_col])} interactions"
@@ -714,6 +704,7 @@ def display_book_cards(df, title_col=None, author_col=None, score_col=None, max_
                     <div class="book-score">{score_text}</div>
                 </div>
                 """, unsafe_allow_html=True)
+
                 description_text = (
                     str(row["description"])
                     if "description" in row
@@ -731,11 +722,13 @@ def make_submission_from_csv(recommendations_df, users, top_k):
 
     for u in users:
         row = recommendations_df[recommendations_df["user_id"] == int(u)]
+
         if row.empty:
             continue
 
         rec_string = row.iloc[0]["recommendation"]
         rec_items = str(rec_string).split()[:top_k]
+
         rows.append((u, " ".join(rec_items)))
 
     return pd.DataFrame(rows, columns=["user_id", "recommendation"])
@@ -760,8 +753,8 @@ st.markdown("""
 st.markdown("""
 <div class="custom-card">
     <p class="muted">
-        Existing users use the recommendation list already generated by your R08 script.
-        New users still use item-item similarity based on selected books.
+        Existing users use the recommendation list already generated by the hybrid recommender.
+        New users use lightweight item-item and content similarity based on selected books.
     </p>
 </div>
 """, unsafe_allow_html=True)
@@ -847,17 +840,26 @@ try:
     )
 except FileNotFoundError:
     st.error(
-        "File not found. Check that items, clean_items, interactions, and recommendations CSV files exist."
+        "File not found. Check that items, clean_items, interactions, recommendations, and descriptions CSV files exist."
     )
     st.stop()
 
 items = merge_clean_metadata(items, clean_items)
+
 if "i" in items.columns and "i" in descriptions.columns:
     description_cols = ["i"]
 
     for col in ["description", "api_title", "api_authors", "api_source", "api_query"]:
         if col in descriptions.columns:
             description_cols.append(col)
+
+    cols_to_drop = [
+        col for col in ["description", "api_title", "api_authors", "api_source", "api_query"]
+        if col in items.columns
+    ]
+
+    if cols_to_drop:
+        items = items.drop(columns=cols_to_drop)
 
     items = items.merge(
         descriptions[description_cols],
@@ -874,11 +876,7 @@ n_users = int(user_pref["u"].max()) + 1
 n_items = int(max(items["i"].max(), user_pref["i"].max())) + 1
 users = np.sort(user_pref["u"].unique())
 
-matrix = build_interaction_matrix(
-    user_pref,
-    n_users,
-    n_items
-)
+seen_by_user, popularity_df = build_interaction_lookup(user_pref)
 
 try:
     item_top_dict, content_top_dict = load_top_similarities(
@@ -887,7 +885,7 @@ try:
     )
 except FileNotFoundError:
     st.error(
-        "Top similarity file not found. Check that the CSV files exist in kaggle_data."
+        "Top similarity file not found. Check that top_item_similarities.csv and top_content_similarities.csv exist in kaggle_data."
     )
     st.stop()
 
@@ -898,7 +896,7 @@ except FileNotFoundError:
 
 st.subheader("Dataset overview")
 
-c1, c2, c3, c4 = st.columns(4)
+c1, c2, c3, c4, c5 = st.columns(5)
 
 c1.metric("Users", f"{len(users):,}")
 c2.metric("Items", f"{len(items):,}")
@@ -908,6 +906,19 @@ if "cover_path" in items.columns:
     c4.metric("Covers found", f"{items['cover_path'].notna().sum():,}")
 else:
     c4.metric("Covers found", "0")
+
+if "description" in items.columns:
+    descriptions_found = (
+        items["description"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+        .ne("")
+        .sum()
+    )
+    c5.metric("Descriptions found", f"{descriptions_found:,}")
+else:
+    c5.metric("Descriptions found", "0")
 
 with st.expander("Preview data"):
     st.write("Items with covers + clean metadata")
@@ -931,7 +942,7 @@ st.markdown("""
     <p class="muted">
         Tell us who you are and whether you already exist in the dataset.
         If you are an existing user, the app uses the recommendation list already generated offline.
-        If you are new, select a few books you love and the app will generate recommendations using item-item similarity.
+        If you are new, select a few books you love and the app will generate recommendations using item-item and content similarity.
     </p>
 </div>
 """, unsafe_allow_html=True)
@@ -952,6 +963,10 @@ with st.container():
         horizontal=True
     )
 
+    # ============================================================
+    # EXISTING USER
+    # ============================================================
+
     if user_type == "Existing user":
         selected_user_id = st.selectbox(
             "Select your user ID",
@@ -968,16 +983,16 @@ with st.container():
                 top_k=max(top_k * 3, top_k)
             )
 
+            seen = seen_by_user.get(int(selected_user_id), set())
+
             if remove_seen:
-                seen = np.where(matrix[int(selected_user_id)] == 1)[0]
                 recs = recs[~recs["item_id"].isin(seen)].head(top_k).reset_index(drop=True)
                 recs["rank"] = range(1, len(recs) + 1)
             else:
                 recs = recs.head(top_k).reset_index(drop=True)
                 recs["rank"] = range(1, len(recs) + 1)
 
-            seen_df = get_seen_items(selected_user_id, matrix, items)
-            seen = np.where(matrix[int(selected_user_id)] == 1)[0]
+            seen_df = get_seen_items_light(selected_user_id, seen_by_user, items)
 
             st.success(
                 f"Welcome {display_name}! Here are your personalized recommendations."
@@ -1025,6 +1040,10 @@ with st.container():
                 mime="text/csv"
             )
 
+    # ============================================================
+    # NEW USER
+    # ============================================================
+
     else:
         st.markdown("""
         Because you are not in the training data, the app cannot use the precomputed CSV.
@@ -1032,11 +1051,10 @@ with st.container():
         and the app recommends similar books.
         """)
 
-        # ------------------------------------------------------------
-        # Persistent selected books for new users
-        # ------------------------------------------------------------
         if "liked_item_ids_new_user" not in st.session_state:
             st.session_state.liked_item_ids_new_user = []
+
+        liked_item_ids = st.session_state.liked_item_ids_new_user
 
         if book_labels is not None:
             search_query = st.text_input(
@@ -1045,9 +1063,6 @@ with st.container():
                 key="new_user_search_query"
             )
 
-            # ------------------------------------------------------------
-            # More flexible search: title + author + subjects if available
-            # ------------------------------------------------------------
             searchable_cols = []
 
             if title_col is not None and title_col in items.columns:
@@ -1071,6 +1086,7 @@ with st.container():
             )
 
             selected_books_from_search = []
+            selected_ids_from_search = []
 
             if not search_query.strip():
                 st.info("Start typing a title, author, or category to find books.")
@@ -1079,6 +1095,7 @@ with st.container():
                 query_words = search_query.lower().split()
 
                 mask = np.ones(len(search_df), dtype=bool)
+
                 for word in query_words:
                     mask &= search_df["search_text"].str.contains(word, case=False, na=False)
 
@@ -1088,13 +1105,11 @@ with st.container():
                     book_labels["i"].astype(int).isin(matching_ids)
                 ].copy()
 
-                # Avoid showing books already saved
                 already_saved = set(st.session_state.liked_item_ids_new_user)
                 filtered_books = filtered_books[
                     ~filtered_books["i"].astype(int).isin(already_saved)
                 ]
 
-                # Very important for Streamlit Cloud: limit displayed options
                 filtered_books = filtered_books.head(100)
 
                 if filtered_books.empty:
@@ -1110,65 +1125,10 @@ with st.container():
                         options=filtered_books["label"].tolist(),
                         key="selected_books_from_search"
                     )
-            if title_col is not None and title_col in items.columns:
-                searchable_cols.append(title_col)
 
-            if author_col is not None and author_col in items.columns:
-                searchable_cols.append(author_col)
-
-            for possible_col in ["Subjects", "subjects", "concepts", "Title", "Author"]:
-                if possible_col in items.columns and possible_col not in searchable_cols:
-                    searchable_cols.append(possible_col)
-
-            search_df = items[["i"] + searchable_cols].copy()
-
-            search_df["search_text"] = (
-                search_df[searchable_cols]
-                .fillna("")
-                .astype(str)
-                .agg(" ".join, axis=1)
-                .str.lower()
-            )
-
-            if search_query.strip():
-                query_words = search_query.lower().split()
-
-                mask = np.ones(len(search_df), dtype=bool)
-                for word in query_words:
-                    mask &= search_df["search_text"].str.contains(word, case=False, na=False)
-
-                matching_ids = search_df.loc[mask, "i"].astype(int).tolist()
-
-                filtered_books = book_labels[
-                    book_labels["i"].astype(int).isin(matching_ids)
-                ].copy()
-
-            # Optional: avoid showing books already saved
-            already_saved = set(st.session_state.liked_item_ids_new_user)
-            filtered_books = filtered_books[
-                ~filtered_books["i"].astype(int).isin(already_saved)
-            ]
-
-            if filtered_books.empty and search_query.strip():
-                st.warning(
-                    "There may be a typo in your search. Please try again. "
-                    "If the problem persists, try another category."
-                )
-                selected_books_from_search = []
-
-            elif filtered_books.empty:
-                st.info("Start typing a title, author, or category to find books.")
-                selected_books_from_search = []
-
-            else:
-                selected_books_from_search = st.multiselect(
-                    "Select books from the category above that you have read and enjoyed",
-                    options=filtered_books["label"].tolist(),
-                    key="selected_books_from_search"
-                )
-            selected_ids_from_search = [
-                int(label.split(" - ")[0]) for label in selected_books_from_search
-            ]
+                    selected_ids_from_search = [
+                        int(label.split(" - ")[0]) for label in selected_books_from_search
+                    ]
 
             if st.button("Add selected books"):
                 if len(selected_ids_from_search) == 0:
@@ -1192,9 +1152,6 @@ with st.container():
                 options=np.sort(items["i"].unique())
             )
 
-        # ------------------------------------------------------------
-        # Display selected books
-        # ------------------------------------------------------------
         if len(liked_item_ids) > 0:
             st.markdown("### Books currently saved in your profile")
 
@@ -1212,9 +1169,6 @@ with st.container():
                 st.session_state.liked_item_ids_new_user = []
                 st.rerun()
 
-        # ------------------------------------------------------------
-        # Recommendation button for new user
-        # ------------------------------------------------------------
         st.markdown("### Generate your recommendations")
 
         if st.button("Get recommendations for me"):
@@ -1283,14 +1237,8 @@ with st.container():
 st.subheader("Popular items")
 
 if st.button("Show popular items"):
-    popularity = matrix.sum(axis=0)
-    top_popular = np.argsort(popularity)[-top_k:][::-1]
-
-    popular_df = pd.DataFrame({
-        "rank": range(1, len(top_popular) + 1),
-        "item_id": top_popular,
-        "number_of_interactions": popularity[top_popular].astype(int)
-    })
+    popular_df = popularity_df.head(top_k).copy()
+    popular_df["rank"] = range(1, len(popular_df) + 1)
 
     popular_df = enrich_with_items(popular_df, items, "item_id")
 
@@ -1315,20 +1263,15 @@ st.subheader("Similarity exploration")
 tab_i = st.tabs(["Similar items"])[0]
 
 with tab_i:
-    # ------------------------------------------------------------
-    # Build readable item labels: item_id - title — author
-    # ------------------------------------------------------------
     if title_col is not None and "i" in items.columns:
         sim_item_labels_df = items[["i", title_col]].copy()
 
         if author_col is not None and author_col in items.columns:
             sim_item_labels_df[author_col] = items[author_col]
+            author_col_for_sim = author_col
         else:
             sim_item_labels_df["Unknown_author"] = "Unknown author"
             author_col_for_sim = "Unknown_author"
-
-        if author_col is not None and author_col in items.columns:
-            author_col_for_sim = author_col
 
         sim_item_labels_df = sim_item_labels_df.dropna(subset=["i", title_col])
 
@@ -1357,9 +1300,6 @@ with tab_i:
         i = st.selectbox("Item", item_options, key="sim_i")
         i = int(i)
 
-    # ------------------------------------------------------------
-    # Retrieve selected item title and author
-    # ------------------------------------------------------------
     selected_item_row = items[items["i"].astype(int) == int(i)]
 
     if not selected_item_row.empty:
@@ -1393,9 +1333,6 @@ with tab_i:
         unsafe_allow_html=True
     )
 
-    # ------------------------------------------------------------
-    # Compute similar items using lightweight top similarities
-    # ------------------------------------------------------------
     if int(i) in item_top_dict:
         top_items, top_scores = item_top_dict[int(i)]
 
@@ -1422,6 +1359,7 @@ with tab_i:
 
     with st.expander("Similar items table"):
         st.dataframe(similar_items_df, use_container_width=True)
+
 
 # ============================================================
 # SUBMISSION
