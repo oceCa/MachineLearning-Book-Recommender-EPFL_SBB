@@ -918,7 +918,6 @@ st.markdown("""
 book_labels = get_book_labels(items, title_col, author_col)
 
 with st.container():
-    st.markdown('<div class="custom-card">', unsafe_allow_html=True)
 
     visitor_name = st.text_input(
         "Your name",
