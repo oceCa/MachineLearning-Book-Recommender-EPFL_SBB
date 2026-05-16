@@ -717,21 +717,7 @@ def display_book_cards(df, title_col=None, author_col=None, score_col=None, max_
                     st.write(description_text)
 
 
-def make_submission_from_csv(recommendations_df, users, top_k):
-    rows = []
 
-    for u in users:
-        row = recommendations_df[recommendations_df["user_id"] == int(u)]
-
-        if row.empty:
-            continue
-
-        rec_string = row.iloc[0]["recommendation"]
-        rec_items = str(rec_string).split()[:top_k]
-
-        rows.append((u, " ".join(rec_items)))
-
-    return pd.DataFrame(rows, columns=["user_id", "recommendation"])
 
 
 # ============================================================
@@ -896,29 +882,11 @@ except FileNotFoundError:
 
 st.subheader("Dataset overview")
 
-c1, c2, c3, c4, c5 = st.columns(5)
+c1, c2, c3 = st.columns(3)
 
 c1.metric("Users", f"{len(users):,}")
 c2.metric("Items", f"{len(items):,}")
 c3.metric("Interactions", f"{len(user_pref):,}")
-
-if "cover_path" in items.columns:
-    c4.metric("Covers found", f"{items['cover_path'].notna().sum():,}")
-else:
-    c4.metric("Covers found", "0")
-
-if "description" in items.columns:
-    descriptions_found = (
-        items["description"]
-        .fillna("")
-        .astype(str)
-        .str.strip()
-        .ne("")
-        .sum()
-    )
-    c5.metric("Descriptions found", f"{descriptions_found:,}")
-else:
-    c5.metric("Descriptions found", "0")
 
 with st.expander("Preview data"):
     st.write("Items with covers + clean metadata")
@@ -1360,25 +1328,3 @@ with tab_i:
     with st.expander("Similar items table"):
         st.dataframe(similar_items_df, use_container_width=True)
 
-
-# ============================================================
-# SUBMISSION
-# ============================================================
-
-st.subheader("Submission")
-
-if st.button("Generate submission"):
-    submission_df = make_submission_from_csv(
-        recommendations_df=recommendations_df,
-        users=users,
-        top_k=top_k
-    )
-
-    st.dataframe(submission_df.head(20), use_container_width=True)
-
-    st.download_button(
-        "Download submission CSV",
-        submission_df.to_csv(index=False),
-        file_name="submission_from_R08_csv.csv",
-        mime="text/csv"
-    )
