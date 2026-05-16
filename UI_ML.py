@@ -943,7 +943,7 @@ with st.container():
 
     visitor_name = st.text_input(
         "Your name",
-        placeholder="e.g.Michalis "
+        placeholder="e.g. Michalis"
     )
 
     user_type = st.radio(
@@ -1045,13 +1045,71 @@ with st.container():
                 key="new_user_search_query"
             )
 
-            filtered_books = book_labels.copy()
-
             # ------------------------------------------------------------
             # More flexible search: title + author + subjects if available
             # ------------------------------------------------------------
             searchable_cols = []
 
+            if title_col is not None and title_col in items.columns:
+                searchable_cols.append(title_col)
+
+            if author_col is not None and author_col in items.columns:
+                searchable_cols.append(author_col)
+
+            for possible_col in ["Subjects", "subjects", "concepts", "Title", "Author"]:
+                if possible_col in items.columns and possible_col not in searchable_cols:
+                    searchable_cols.append(possible_col)
+
+            search_df = items[["i"] + searchable_cols].copy()
+
+            search_df["search_text"] = (
+                search_df[searchable_cols]
+                .fillna("")
+                .astype(str)
+                .agg(" ".join, axis=1)
+                .str.lower()
+            )
+
+            selected_books_from_search = []
+
+            if not search_query.strip():
+                st.info("Start typing a title, author, or category to find books.")
+
+            else:
+                query_words = search_query.lower().split()
+
+                mask = np.ones(len(search_df), dtype=bool)
+                for word in query_words:
+                    mask &= search_df["search_text"].str.contains(word, case=False, na=False)
+
+                matching_ids = search_df.loc[mask, "i"].astype(int).tolist()
+
+                filtered_books = book_labels[
+                    book_labels["i"].astype(int).isin(matching_ids)
+                ].copy()
+
+                # Avoid showing books already saved
+                already_saved = set(st.session_state.liked_item_ids_new_user)
+                filtered_books = filtered_books[
+                    ~filtered_books["i"].astype(int).isin(already_saved)
+                ]
+
+                # Very important for Streamlit Cloud: limit displayed options
+                filtered_books = filtered_books.head(100)
+
+                if filtered_books.empty:
+                    st.warning(
+                        "There may be a typo in your search. Please try again. "
+                        "If the problem persists, try another category."
+                    )
+                else:
+                    st.caption(f"Showing up to 100 matching books for: '{search_query}'")
+
+                    selected_books_from_search = st.multiselect(
+                        "Select books from the category above that you have read and enjoyed",
+                        options=filtered_books["label"].tolist(),
+                        key="selected_books_from_search"
+                    )
             if title_col is not None and title_col in items.columns:
                 searchable_cols.append(title_col)
 
