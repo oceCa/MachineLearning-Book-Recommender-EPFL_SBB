@@ -1090,18 +1090,9 @@ new_user_alpha = st.sidebar.slider(
 )
 
 # Number of recommendations displayed.
-top_k = st.sidebar.slider(
-    "Top K",
-    min_value=1,
-    max_value=10,
-    value=10
-)
+# Fixed to 10 because the app should always recommend exactly 10 books.
+top_k = 10
 
-# Option to remove books already seen by existing users from recommendations.
-remove_seen = st.sidebar.checkbox(
-    "Remove seen items",
-    value=True
-)
 
 
 # LOAD DATA
@@ -1257,44 +1248,34 @@ with st.container():
         if st.button("Get my personalized recommendations"):
             display_name = visitor_name.strip() if visitor_name.strip() else "there"
 
-            # Load precomputed recommendations from the CSV.
+            # Load exactly 10 precomputed recommendations from the CSV.
+            # Seen items are NOT removed, because the recommendation list should
+            # remain exactly as produced by the recommender.
             recs = get_recommendations_from_csv(
                 user_id=selected_user_id,
                 recommendations_df=recommendations_df,
                 items=items,
-                top_k=max(top_k * 3, top_k)
+                top_k=10
             )
 
-            # Retrieve items already seen by this user.
-            seen = seen_by_user.get(int(selected_user_id), set())
-
-            # Optionally remove seen items from the displayed recommendations.
-            if remove_seen:
-                recs = recs[~recs["item_id"].isin(seen)].head(top_k).reset_index(drop=True)
-                recs["rank"] = range(1, len(recs) + 1)
-            else:
-                recs = recs.head(top_k).reset_index(drop=True)
-                recs["rank"] = range(1, len(recs) + 1)
-
-            # Build dataframe of books already seen by the user.
-            seen_df = get_seen_items_light(selected_user_id, seen_by_user, items)
+            # Make sure the app always displays exactly 10 recommendations if available.
+            recs = recs.head(10).reset_index(drop=True)
+            recs["rank"] = range(1, len(recs) + 1)
 
             # Success message.
             st.success(
-                f"Welcome {display_name}! Here are your personalized recommendations."
+                f"Welcome {display_name}! Here are your 10 personalized recommendations."
             )
 
             # Display summary metrics for this user.
-            col1, col2, col3 = st.columns(3)
-            col1.metric("Seen items", len(seen))
-            col2.metric("Recommendations", len(recs))
-            col3.metric("Source", "R08 CSV")
+            col1, col2 = st.columns(2)
+            col1.metric("Recommendations", len(recs))
+            col2.metric("Source", "R08 CSV")
 
-            # Tabs for recommendation cards, table, and seen items.
-            tab1, tab2, tab3 = st.tabs([
+            # Tabs for recommendation cards and table only.
+            tab1, tab2 = st.tabs([
                 "Book cards",
-                "Recommendation table",
-                "Seen items"
+                "Recommendation table"
             ])
 
             # Visual card display.
@@ -1304,25 +1285,12 @@ with st.container():
                     title_col=title_col,
                     author_col=author_col,
                     score_col=None,
-                    max_items=top_k
+                    max_items=10
                 )
 
             # Raw recommendation dataframe.
             with tab2:
                 st.dataframe(recs, use_container_width=True)
-
-            # Books the selected user has already interacted with.
-            with tab3:
-                st.markdown("These are books already interacted with by this user.")
-                display_book_cards(
-                    seen_df,
-                    title_col=title_col,
-                    author_col=author_col,
-                    max_items=20
-                )
-
-                with st.expander("Seen items table"):
-                    st.dataframe(seen_df, use_container_width=True)
 
             # Allow the user to download recommendations as CSV.
             st.download_button(
@@ -1517,9 +1485,12 @@ with st.container():
                     item_top_dict=item_top_dict,
                     content_top_dict=content_top_dict,
                     items=items,
-                    top_k=top_k,
+                    top_k=10,
                     alpha=new_user_alpha
                 )
+
+                new_user_recs = new_user_recs.head(10).reset_index(drop=True)
+                new_user_recs["rank"] = range(1, len(new_user_recs) + 1)
 
                 # Display new-user results in tabs.
                 tab_new_1, tab_new_2, tab_new_3 = st.tabs([
@@ -1535,7 +1506,7 @@ with st.container():
                         title_col=title_col,
                         author_col=author_col,
                         score_col="score",
-                        max_items=top_k
+                        max_items=10
                     )
 
                 # Raw recommendation table.
@@ -1728,3 +1699,4 @@ with tab_i:
     # Also provide the raw similar-items table.
     with st.expander("Similar items table"):
         st.dataframe(similar_items_df, use_container_width=True)
+        
