@@ -36,8 +36,8 @@ user_pref=user_pref.sort_values(["u", "t"])
 user_pref["pct_rank"] = user_pref.groupby("u")["t"].rank(pct=True, method='dense')
 user_pref.reset_index(inplace=True, drop=True)
 
-train_data = user_pref[user_pref["pct_rank"] < 0.8]
-test_data = user_pref[user_pref["pct_rank"] >= 0.8]
+# train_data = user_pref[user_pref["pct_rank"] < 0.8]
+# test_data = user_pref[user_pref["pct_rank"] >= 0.8]
 
 # Define a function to create the data matrix
 def create_data_matrix(data, n_users, n_items):
@@ -66,8 +66,8 @@ def create_decayed_matrix(data, n_users, n_items, decay_rate=1e-9):
 
 
 # Create the training and testing matrices
-train_data_matrix = create_decayed_matrix(train_data, n_users, n_items)
-test_data_matrix = create_data_matrix(test_data, n_users, n_items)
+train_data_matrix = create_decayed_matrix(user_pref, n_users, n_items)
+# test_data_matrix = create_data_matrix(test_data, n_users, n_items)
 
 #create metadata vectors
 sp = spacy.load('fr_core_news_sm')
@@ -279,11 +279,10 @@ top_k = 10
 
 # Combine predictions once
 final_prediction = alpha * user_prediction + (beta) * item_prediction + (1 - alpha - beta)*content_prediction
-precision_hybrid_k, recall_hybrid_k = precision_recall_at_k(final_prediction, test_data_matrix, k=10)
-print('Hybrid-based CF Precision@K:', precision_hybrid_k)
-print('Hybrid-based CF Recall@K:', recall_hybrid_k)
+# precision_hybrid_k, recall_hybrid_k = precision_recall_at_k(final_prediction, test_data_matrix, k=10)
+# print('Hybrid-based CF Precision@K:', precision_hybrid_k)
+# print('Hybrid-based CF Recall@K:', recall_hybrid_k)
 
-rows = []
 
 rows = []
 
@@ -305,8 +304,4 @@ for x in user_pref["u"].unique():
 # Final dataframe
 hybrid_df = pd.DataFrame(rows, columns=["user_id", "recommendation"])
 hybrid_df.to_csv("Submission/Hybrid_0.3_0.3_SBB_R08_final.csv", index=False)
-
-
-
-
 
