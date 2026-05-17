@@ -4,16 +4,16 @@ BookMatch AI is a book recommendation project developed for the Machine Learning
 
 The project combines collaborative filtering, content-based recommendation, metadata enrichment, and a visual web interface. It supports both existing users, who already appear in the dataset, and new users, who can receive recommendations by selecting books they like.
 
-The deployed Streamlit app is available here: https://bookmatch-ai-epfl-sbb.streamlit.app/
+The deployed Streamlit app is available here: 
 
 ```text
-Add Streamlit app link here
+https://bookmatch-ai-epfl-sbb.streamlit.app/
 ```
 
 The project video is available here:
 
 ```text
-Add YouTube video link here:
+https://youtu.be/ajJe96K7BJw
 ```
 
 ---
@@ -556,6 +556,43 @@ TF-IDF content similarity
 recency decay
 ```
 
+
+## Qualitative Evaluation of Recommendations
+
+### Example of a Successful Recommendation — User 6
+
+**Sample of previously read books:**
+- *Empires illusoires : les paris perdus de la colonization*
+- *La Suisse et l'esclavage des Noirs*
+- *De Rousseau à Dunant : la colonisation et l'esclavage vus de Genève*
+
+**Sample of recommended books:**
+- *Emma Goldman : la révolution comme mode de vie*
+- *Henry Dunant l'Algérien, ou, Le mirage colonial*
+- *Le théâtre romantique : histoire, écriture, mise en scène*
+
+Most of the recommendations belong to themes already present in the user's reading history, particularly colonization, history, and political thought. The recommendations therefore appear coherent with the user's interests.  
+
+This user has interacted with four books, some of them multiple times, which likely strengthened the model’s ability to identify consistent preferences and generate more accurate recommendations.
+
+---
+
+### Example of a Less Successful Recommendation — User 8
+
+**Sample of previously read books:**
+- *Quantix : la physique quantique et la relativité en BD*
+- *L'analyse des récits*
+- *Capitale de la douleur ; Suivi de l'amour la poésie*
+
+**Sample of recommended books:**
+- *Le Gaffiot de poche : dictionnaire latin-français*
+- *The Catcher in the Rye*
+- *Fiction et diction*
+- *Oeuvres ; Discours du récit*
+
+This user has only interacted with three books, each only once. In addition, the books belong to relatively broad and heterogeneous themes, ranging from physics to literary analysis and poetry.  
+
+As a result, the model struggles to infer a clear preference profile and produces recommendations that appear more diverse and less targeted than those generated for User 6. This illustrates one of the limitations of collaborative and content-based recommendation systems when user interaction history is sparse or inconsistent.
 ---
 
 # V. User Interface
@@ -573,7 +610,6 @@ The interface supports:
 ```text
 recommendations for existing users
 cold-start recommendations for new users
-seen items for existing users
 popular items
 similarity exploration between books
 book cards with covers
@@ -727,6 +763,10 @@ The decorative library background image used in the UI comes from:
 
 ```text
 https://www.elaee.com/2017/08/21/28089-plus-belles-bibliotheques-monde-quil-ny-a-linternet-vie
+```
+and 
+```text
+https://www.worldhistory.org/trans/fr/2-1607/voute-de-la-chapelle-sixtine-par-michel-ange/
 ```
 
 ---
@@ -1109,3 +1149,11 @@ The recommender model computes hybrid recommendations based on collaborative fil
 Existing users receive recommendations from the precomputed hybrid recommendation CSV. New users receive cold-start recommendations based on selected books and lightweight top-similarity files. The interface also improves interpretability by showing seen items, popular books, similar books, covers, and descriptions.
 
 Overall, BookMatch AI turns the recommender system into an interactive tool that is easier to understand, test, present, and use.
+
+
+# XIV. Other sources
+The music used in the video comes from:
+
+```text
+https://www.youtube.com/watch?v=aNeCFtsVD8s
+```

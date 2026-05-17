@@ -1,5 +1,3 @@
-#Lab code version of the project
-
 import numpy as np
 import pandas as pd
 import sklearn
@@ -39,7 +37,7 @@ user_pref.reset_index(inplace=True, drop=True)
 # train_data = user_pref[user_pref["pct_rank"] < 0.8]
 # test_data = user_pref[user_pref["pct_rank"] >= 0.8]
 
-# Define a function to create the data matrix
+# Function to create the data matrix
 def create_data_matrix(data, n_users, n_items):
     """
     This function returns a numpy matrix with shape (n_users, n_items).
@@ -65,11 +63,12 @@ def create_decayed_matrix(data, n_users, n_items, decay_rate=1e-9):
     return data_matrix
 
 
-# Create the training and testing matrices
+# Creating the training and testing matrices
 train_data_matrix = create_decayed_matrix(user_pref, n_users, n_items)
 # test_data_matrix = create_data_matrix(test_data, n_users, n_items)
 
-#create metadata vectors
+# CONTENT MATRIX
+# Function to create metadata vectors
 sp = spacy.load('fr_core_news_sm')
 def remove_duplicates(tokens):
     seen = set()
@@ -90,20 +89,15 @@ def spacy_tokenizer(text):
     if not isinstance(text, str):
         return ""
     
-    # 1. Replace separators properly (regex)
     text = re.sub(r"[;,\/]+", " ", text)
 
-    # 2. Split into words
     mytokens = text.split()
-    
-    # Lemmatize each token and convert each token into lowercase
+
     mytokens = ([ word.lower().strip() for word in mytokens ])
 
-    # Remove stop words and punctuation
     mytokens = ([ word for word in mytokens 
                  if word not in stop_words and word not in punctuations ])
     
-   
     mytokens_2 = []
     for word in mytokens:
         # This effectively "cleans" the word character by character
@@ -112,16 +106,17 @@ def spacy_tokenizer(text):
         if clean_word != "":
             mytokens_2.append(clean_word)
 
-    # Return preprocessed list of tokens
     mytokens_2 = remove_duplicates(mytokens_2)
     return " ".join(mytokens_2)
 
 
+# Cleaning items metadata
 items["titles_cleaned"]=[title[:-2] for title in items["Title"]]
 items["subjects_cleaned"] = [spacy_tokenizer(text) for text in items["Subjects"]]
 items["authors_cleaned"] = [spacy_tokenizer(text) for text in items["Author"]]
 items["concepts"]=items["titles_cleaned"] + " " + items["authors_cleaned"] + " " + items["subjects_cleaned"]
 
+# TF-IDF
 vectorizer = TfidfVectorizer(
     max_features=10000,
     ngram_range=(1,3),
@@ -130,22 +125,21 @@ vectorizer = TfidfVectorizer(
     sublinear_tf=True
 )
 content_matrix = vectorizer.fit_transform(items["concepts"])
-
 content_sim = cosine_similarity(content_matrix)
 
-# ============================================================
-# SAVE CONTENT SIMILARITY MATRIX FOR UI
-# ============================================================
+# saving content similarity for UI
 
-# os.makedirs("NPYs", exist_ok=True)
+os.makedirs("NPYs", exist_ok=True)
 
-# np.save(
-#     "NPYs/UI-content_similarity.npy",
-#     content_sim.astype(np.float32)
-# )
+np.save(
+    "NPYs/UI-content_similarity.npy",
+    content_sim.astype(np.float32)
+)
 
-# print("Saved content similarity matrix to: NPYs/UI-content_similarity.npy")
-# print("Content similarity shape:", content_sim.shape)
+print("Saved content similarity matrix to: NPYs/UI-content_similarity.npy")
+print("Content similarity shape:", content_sim.shape)
+
+# Function to make predictions based on the content similarity
 def content_based_predict(interactions, similarity, epsilon=1e-9):
     """
     interactions: your train_data_matrix (Users x Items)
@@ -158,105 +152,68 @@ def content_based_predict(interactions, similarity, epsilon=1e-9):
 
 content_prediction = content_based_predict(train_data_matrix, content_sim)
 
-#item-item matrix
+# ITEM-ITEM MATRIX
 
 item_similarity = cosine_similarity(train_data_matrix.T)
 
-# ============================================================
-# SAVE ITEM SIMILARITY MATRIX FOR UI
-# ============================================================
+# saving item similarity for UI
 
-# os.makedirs("NPYs", exist_ok=True)
+os.makedirs("NPYs", exist_ok=True)
 
-# np.save(
-#     "NPYs/UI-item_similarity.npy",
-#     item_similarity.astype(np.float32)
-# )
+np.save(
+    "NPYs/UI-item_similarity.npy",
+    item_similarity.astype(np.float32)
+)
 
-# print("Saved item similarity matrix to: NPYs/UI-item_similarity.npy")
-# print("Item similarity shape:", item_similarity.shape)
+print("Saved item similarity matrix to: NPYs/UI-item_similarity.npy")
+print("Item similarity shape:", item_similarity.shape)
 
 
-# Define the function to predict interactions based on item similarity
+# Function to predict interactions based on item similarity
 def item_based_predict(interactions, similarity, epsilon=1e-9):
-    """
-    Predicts user-item interactions based on item-item similarity.
-    Parameters:
-        interactions (numpy array): The user-item interaction matrix.
-        similarity (numpy array): The item-item similarity matrix.
-        epsilon (float): Small constant added to the denominator to avoid division by zero.
-    Returns:
-        numpy array: The predicted interaction scores for each user-item pair.
-    """
-    # np.dot does the matrix multiplication. Here we are calculating the
-    # weighted sum of interactions based on item similarity
+
     pred = similarity.dot(interactions.T) / (similarity.sum(axis=1)[:, np.newaxis] + epsilon)
     return pred.T  # Transpose to get users as rows and items as columns
 
-# Calculate the item-based predictions for positive interactions
+# Calculating the item-based predictions for positive interactions
 item_prediction = item_based_predict(train_data_matrix, item_similarity)
 print("Predicted Interaction Matrix:")
 print(item_prediction)
 print(item_prediction.shape)
 
 
-#user-user matrix
+# USER-USER MATRIX
 user_similarity = cosine_similarity(train_data_matrix)
 
-
-
-# Define the function to predict interactions based on user similarity
+# Function to predict interactions based on user similarity
 def user_based_predict(interactions, similarity, epsilon=1e-9):
-    """
-    Predicts user-item interactions based on user-user similarity.
-    Parameters:
-        interactions (numpy array): The user-item interaction matrix.
-        similarity (numpy array): The user-user similarity matrix.
-        epsilon (float): Small constant added to the denominator to avoid division by zero.
-    Returns:
-        numpy array: The predicted interaction scores for each user-item pair.
-    """
-    # Calculate the weighted sum of interactions based on user similarity
+
     pred = similarity.dot(interactions) / (np.abs(similarity).sum(axis=1)[:, np.newaxis] + epsilon)
     return pred
 
-# Calculate the user-based predictions for positive interactions
+# Calculating the user-based predictions for positive interactions
 user_prediction = user_based_predict(train_data_matrix, user_similarity)
 print("Predicted Interaction Matrix (User-Based):")
 print(user_prediction)
 print(user_prediction.shape)
 
 
-
+# Function to calculate precision and recall
 def precision_recall_at_k(prediction, ground_truth, k=10):
-    """
-    Calculates Precision@K and Recall@K for top-K recommendations.
-    Parameters:
-        prediction (numpy array): The predicted interaction matrix with scores.
-        ground_truth (numpy array): The ground truth interaction matrix (binary).
-        k (int): Number of top recommendations to consider.
-    Returns:
-        precision_at_k (float): The average precision@K over all users.
-        recall_at_k (float): The average recall@K over all users.
-    """
+
     num_users = prediction.shape[0]
     precision_at_k, recall_at_k = 0, 0
 
     for user in range(num_users):
-        # TODO: Get the indices of the top-K items for the user based on predicted scores
         top_k_items = np.argsort(prediction[user, :])[-k:]
 
-        # TODO: Calculate the number of relevant items in the top-K items for the user
         relevant_items_in_top_k = np.isin(top_k_items, np.where(ground_truth[user, :] == 1)[0]).sum()
 
-        # TODO: Calculate the total number of relevant items for the user
         total_relevant_items = ground_truth[user, :].sum()
 
-        # Precision@K and Recall@K for this user
         precision_at_k += relevant_items_in_top_k / k
         recall_at_k += relevant_items_in_top_k / total_relevant_items if total_relevant_items > 0 else 0
 
-    # Average Precision@K and Recall@K over all users
     precision_at_k /= num_users
     recall_at_k /= num_users
 
@@ -272,12 +229,12 @@ def precision_recall_at_k(prediction, ground_truth, k=10):
 # print('Item-based CF Recall@K:', recall_item_k)
 
 
-#make predictions
+# HYBRID MODEL
 alpha = 0.3
 beta=0.3
 top_k = 10
 
-# Combine predictions once
+# Combining predictions once
 final_prediction = alpha * user_prediction + (beta) * item_prediction + (1 - alpha - beta)*content_prediction
 # precision_hybrid_k, recall_hybrid_k = precision_recall_at_k(final_prediction, test_data_matrix, k=10)
 # print('Hybrid-based CF Precision@K:', precision_hybrid_k)
@@ -286,14 +243,10 @@ final_prediction = alpha * user_prediction + (beta) * item_prediction + (1 - alp
 
 rows = []
 
-top_k_submission = 10  # keep more than 10 so the UI has enough options
+top_k_submission = 10  
 
 for x in user_pref["u"].unique():
     scores = final_prediction[x, :].copy()
-
-    # # Remove all items already seen by this user
-    # seen_items = user_pref.loc[user_pref["u"] == x, "i"].values
-    # scores[seen_items] = -np.inf
 
     top_items = np.argsort(scores)[-top_k_submission:][::-1]
 
