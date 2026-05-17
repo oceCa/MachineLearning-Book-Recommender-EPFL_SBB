@@ -21,6 +21,7 @@ import re
 from sklearn.feature_extraction.text import TfidfVectorizer
 import os
 
+
 items=pd.read_csv("kaggle_data/items.csv")
 user_pref=pd.read_csv("kaggle_data/interactions_train.csv")
 
@@ -136,15 +137,15 @@ content_sim = cosine_similarity(content_matrix)
 # SAVE CONTENT SIMILARITY MATRIX FOR UI
 # ============================================================
 
-os.makedirs("NPYs", exist_ok=True)
+# os.makedirs("NPYs", exist_ok=True)
 
-np.save(
-    "NPYs/UI-content_similarity.npy",
-    content_sim.astype(np.float32)
-)
+# np.save(
+#     "NPYs/UI-content_similarity.npy",
+#     content_sim.astype(np.float32)
+# )
 
-print("Saved content similarity matrix to: NPYs/UI-content_similarity.npy")
-print("Content similarity shape:", content_sim.shape)
+# print("Saved content similarity matrix to: NPYs/UI-content_similarity.npy")
+# print("Content similarity shape:", content_sim.shape)
 def content_based_predict(interactions, similarity, epsilon=1e-9):
     """
     interactions: your train_data_matrix (Users x Items)
@@ -165,15 +166,15 @@ item_similarity = cosine_similarity(train_data_matrix.T)
 # SAVE ITEM SIMILARITY MATRIX FOR UI
 # ============================================================
 
-os.makedirs("NPYs", exist_ok=True)
+# os.makedirs("NPYs", exist_ok=True)
 
-np.save(
-    "NPYs/UI-item_similarity.npy",
-    item_similarity.astype(np.float32)
-)
+# np.save(
+#     "NPYs/UI-item_similarity.npy",
+#     item_similarity.astype(np.float32)
+# )
 
-print("Saved item similarity matrix to: NPYs/UI-item_similarity.npy")
-print("Item similarity shape:", item_similarity.shape)
+# print("Saved item similarity matrix to: NPYs/UI-item_similarity.npy")
+# print("Item similarity shape:", item_similarity.shape)
 
 
 # Define the function to predict interactions based on item similarity
@@ -262,13 +263,13 @@ def precision_recall_at_k(prediction, ground_truth, k=10):
     return precision_at_k, recall_at_k
 
 
-precision_user_k, recall_user_k = precision_recall_at_k(user_prediction, test_data_matrix, k=10)
-precision_item_k, recall_item_k = precision_recall_at_k(item_prediction, test_data_matrix, k=10)
+# precision_user_k, recall_user_k = precision_recall_at_k(user_prediction, test_data_matrix, k=10)
+# precision_item_k, recall_item_k = precision_recall_at_k(item_prediction, test_data_matrix, k=10)
 
-print('User-based CF Precision@K:', precision_user_k)
-print('User-based CF Recall@K:', recall_user_k)
-print('Item-based CF Precision@K:', precision_item_k)
-print('Item-based CF Recall@K:', recall_item_k)
+# print('User-based CF Precision@K:', precision_user_k)
+# print('User-based CF Recall@K:', recall_user_k)
+# print('Item-based CF Precision@K:', precision_item_k)
+# print('Item-based CF Recall@K:', recall_item_k)
 
 
 #make predictions
@@ -286,14 +287,14 @@ rows = []
 
 rows = []
 
-top_k_submission = 50  # keep more than 10 so the UI has enough options
+top_k_submission = 10  # keep more than 10 so the UI has enough options
 
 for x in user_pref["u"].unique():
     scores = final_prediction[x, :].copy()
 
-    # Remove all items already seen by this user
-    seen_items = user_pref.loc[user_pref["u"] == x, "i"].values
-    scores[seen_items] = -np.inf
+    # # Remove all items already seen by this user
+    # seen_items = user_pref.loc[user_pref["u"] == x, "i"].values
+    # scores[seen_items] = -np.inf
 
     top_items = np.argsort(scores)[-top_k_submission:][::-1]
 

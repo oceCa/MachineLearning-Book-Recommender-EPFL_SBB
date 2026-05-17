@@ -1,28 +1,69 @@
-# I. Project Objective and Data Description
+# BookMatch AI — Personalized Book Recommendation System
 
-This project aims to make book recommendations to users based on their preferences. To do so, we build a model that gives the most accurate recommendations.
+BookMatch AI is a book recommendation project developed for the Machine Learning course. The goal is to recommend relevant books to users based on their previous interactions, while also providing an interactive Streamlit interface to explore the results in a clear and user-friendly way.
 
-The data used to train the model is provided in `user_preferences.csv`. This data serves to build a binary interaction matrix indicating which books each user has read.
+The project combines collaborative filtering, content-based recommendation, metadata enrichment, and a visual web interface. It supports both existing users, who already appear in the dataset, and new users, who can receive recommendations by selecting books they like.
 
-The `items.csv` matrix is used to improve the model by drawing similarity between books based on their metadata. This yields better results in some cases, including the final recommender model.
+The deployed Streamlit app is available here: https://bookmatch-ai-epfl-sbb.streamlit.app/
 
-In some trials, the data is also augmented using the Google Books API, but this is not retained for the final model as explained in later sections.
+```text
+Add Streamlit app link here
+```
 
-Most of the methods applied in building this model are based on the class lectures and lab session code. Some other methods such as the decay function and sentence-transform embeddings are attempted based on more extended research assisted by AI tools.
+The project video is available here:
+
+```text
+Add YouTube video link here:
+```
 
 ---
-## Exploratory Data Analysis
 
-Before building the recommender system, an exploratory data analysis was conducted in `EDA.py` to understand the structure, quality, and main patterns of the dataset. The EDA focuses on two main files:
+# I. Project Objective and Data Description
+
+This project aims to recommend books to users based on their preferences. To do so, we build and evaluate several recommender models and keep the best-performing one as the final recommendation system.
+
+The data used to train the model is provided in:
+
+```text
+kaggle_data/interactions_train.csv
+```
+
+This file contains the historical user-item interactions and is used to build the interaction matrix indicating which books each user has read or interacted with.
+
+The book metadata is provided in:
+
+```text
+kaggle_data/items.csv
+```
+
+This file is used to improve the model by drawing similarity between books based on their metadata, including title, author, publisher, ISBN, and subjects.
+
+In some trials, the data was also augmented using external APIs, especially to retrieve book descriptions. However, augmented metadata was not retained for the final recommender model because it did not improve the leaderboard score. Descriptions are still used in the Streamlit interface to improve user experience.
+
+Most of the methods applied in this project are based on the course lectures and recommender lab code. Additional methods, such as the recency decay function and sentence-transformer embeddings, were explored as extensions.
+
+---
+
+# II. Exploratory Data Analysis
+
+Before building the recommender system, an exploratory data analysis was conducted in:
+
+```text
+EDA.py
+```
+
+The purpose of the EDA was to understand the structure, quality, and main patterns of the dataset before designing the recommendation pipeline.
+
+The EDA focuses on two main files:
 
 ```text
 kaggle_data/interactions_train.csv
 kaggle_data/items.csv
 ```
 
-The interaction file contains the historical user-item interactions, while the item file contains the book metadata such as title, author, ISBN, publisher, subjects, and item ID.
+The interaction file contains historical user-item interactions, while the item file contains book metadata such as title, author, ISBN, publisher, subjects, and item ID.
 
-The EDA script generates printed summaries, diagnostic checks, plots, and summary tables. All generated outputs are saved in:
+All EDA outputs are saved in:
 
 ```text
 eda_outputs/
@@ -30,9 +71,9 @@ eda_outputs/
 
 ---
 
-### Purpose of the EDA
+## Purpose of the EDA
 
-The goal of the EDA is to understand the dataset before designing the recommendation pipeline. In particular, the analysis investigates:
+The EDA investigates:
 
 ```text
 dataset size
@@ -51,17 +92,17 @@ This step is important because recommender systems are strongly affected by data
 
 ---
 
-### Dataset Overview
+## Dataset Overview
 
 The dataset contains:
 
 ```text
 87,047 interactions
 7,838 users
-15,291 items
+15,291 books
 ```
 
-The interaction table contains three main variables:
+The interaction table contains three variables:
 
 ```text
 u    user ID
@@ -69,7 +110,7 @@ i    item ID
 t    timestamp
 ```
 
-The item metadata contains descriptive information about books, including:
+The item metadata contains descriptive information about books:
 
 ```text
 Title
@@ -80,15 +121,21 @@ Subjects
 i
 ```
 
-The EDA confirms that the two datasets are well aligned. All items appearing in the interactions table are present in the metadata table, and only 182 books in the metadata have never been interacted with. This strong coverage is useful because it allows both collaborative filtering and content-based methods to rely on a consistent item catalog.
+The EDA confirms that the interaction data and metadata are well aligned. All items appearing in the interaction table are present in the metadata table, and only 182 books in the metadata have never been interacted with. This strong coverage is useful because it allows the recommender to combine collaborative filtering and content-based methods on a consistent catalog.
 
 ---
 
-### Data Quality Checks
+## Data Quality Checks
 
-The script checks missing values, duplicate rows, duplicate user-item pairs, and duplicate item IDs.
+The interaction dataset is very clean. It contains no missing values and only two exact duplicate rows.
 
-The interaction dataset is very clean: it contains no missing values and only two exact duplicate rows. However, there are 23,044 repeated user-item pairs. This means that the same user may have interacted several times with the same item. These repeated interactions are not necessarily errors, but they show that interactions should not be interpreted only as unique binary events without reflection.
+However, there are:
+
+```text
+23,044 repeated user-item pairs
+```
+
+This means that the same user may have interacted several times with the same item. These repeated interactions are not necessarily errors, but they show that interactions should not always be interpreted as strictly unique binary events.
 
 The item metadata contains more missing values. The main missing fields are:
 
@@ -98,9 +145,9 @@ Subjects: 14.54% missing
 ISBN Valid: 4.73% missing
 ```
 
-Titles and publishers are almost complete. The missing author and subject fields are important because they can reduce the quality of content-based recommendation methods.
+Titles and publishers are almost complete. Missing authors and subjects are important because they can reduce the quality of content-based recommendation methods.
 
-One of the EDA plots visualizes the percentage of missing values by metadata field:
+The missing value plot is saved as:
 
 ```text
 eda_outputs/items_missing_values_percentage.png
@@ -108,9 +155,11 @@ eda_outputs/items_missing_values_percentage.png
 
 ---
 
-### Interaction Matrix Sparsity
+## Interaction Matrix Sparsity
 
-A key result of the EDA is the extreme sparsity of the user-item matrix. Based on the number of users, items, and observed interactions, the matrix density is:
+A key result of the EDA is the extreme sparsity of the user-item matrix.
+
+The matrix density is:
 
 ```text
 0.000726
@@ -124,15 +173,15 @@ This corresponds to a sparsity level of approximately:
 
 This means that only a very small fraction of all possible user-item pairs has been observed. Such sparsity is typical in recommender systems, but it makes the task more difficult, especially for methods relying only on collaborative filtering.
 
-The EDA therefore supports the choice of combining collaborative methods with content-based information.
+This result supports the choice of combining collaborative methods with content-based information.
 
 ---
 
-### User Activity and Item Popularity
+## User Activity and Item Popularity
 
-The EDA analyzes how many interactions each user has and how many interactions each item receives.
+User activity is highly right-skewed. Most users interact with only a few books, while a small number of users are much more active.
 
-User activity is highly right-skewed. Most users interact with only a few books, while a small number of users are much more active. The average number of interactions per user is approximately:
+The average number of interactions per user is:
 
 ```text
 11.1
@@ -150,7 +199,9 @@ The most active user has:
 385 interactions
 ```
 
-Item popularity follows a similar pattern. Most books receive few interactions, while a small number of books are much more popular. Books receive on average:
+Item popularity follows a similar pattern. Most books receive few interactions, while a small number of books are much more popular.
+
+Books receive on average:
 
 ```text
 5.76 interactions
@@ -168,7 +219,7 @@ and a maximum of:
 380 interactions
 ```
 
-The following plots are generated to visualize these distributions:
+The corresponding plots are saved as:
 
 ```text
 eda_outputs/hist_interactions_per_user.png
@@ -176,13 +227,11 @@ eda_outputs/hist_interactions_per_user_log.png
 eda_outputs/hist_interactions_per_item.png
 ```
 
-These plots show a strong right-skewed pattern, which is typical of recommender datasets.
-
 ---
 
-### Most Popular Books
+## Most Popular Books
 
-The EDA identifies the most interacted items and merges them with the item metadata to retrieve the corresponding titles and authors. The most popular books include a diverse set of content, such as reference books, manga, fiction, and academic or professional material.
+The EDA identifies the most interacted books and merges them with the item metadata to retrieve titles and authors.
 
 Examples of highly interacted books include:
 
@@ -194,7 +243,7 @@ Spy x Family
 L'Arabe du futur
 ```
 
-This confirms that the catalog is heterogeneous and that the recommender must handle different types of books rather than a single homogeneous domain.
+This confirms that the catalog is heterogeneous and includes reference books, manga, fiction, academic books, and professional material.
 
 The top popular items are saved in:
 
@@ -204,17 +253,17 @@ eda_outputs/top_popular_items.csv
 
 ---
 
-### Time Analysis
+## Time Analysis
 
 The timestamp column is converted into datetime format to analyze how interactions evolve over time.
 
-The interactions span the period from:
+The interactions span the period:
 
 ```text
 January 2023 to October 2024
 ```
 
-The monthly interaction plot shows that activity is relatively stable during 2023, usually between 5,000 and 6,000 interactions per month, before declining during 2024. This decline may reflect a real decrease in activity or incomplete coverage for the latest months.
+The monthly interaction plot shows that activity is relatively stable during 2023, usually between 5,000 and 6,000 interactions per month, before declining during 2024. This decline may reflect a real decrease in activity or incomplete coverage of the latest months.
 
 The monthly time evolution plot is saved as:
 
@@ -224,11 +273,9 @@ eda_outputs/interactions_over_time_monthly.png
 
 ---
 
-### Metadata Analysis
+## Metadata Analysis
 
-The EDA also investigates the quality and richness of the item metadata.
-
-For text fields such as title, author, publisher, and subjects, the script computes length statistics. It also identifies the most frequent authors, publishers, and subjects.
+The EDA also investigates the richness of the item metadata.
 
 The publisher analysis shows that the catalog includes literary, academic, legal, and professional publishers. Some of the most frequent publishers include:
 
@@ -246,7 +293,7 @@ The corresponding plot is saved as:
 eda_outputs/top_publishers.png
 ```
 
-The subjects field is also informative. Books have on average around:
+The subjects field is also informative. Books have on average:
 
 ```text
 3.23 subjects
@@ -272,7 +319,7 @@ Droit
 
 This shows that the collection is multilingual and diverse, with strong representation of comics, practical guides, fiction, legal books, and Swiss-related topics.
 
-The corresponding subject plots are saved as:
+The corresponding plots are saved as:
 
 ```text
 eda_outputs/subjects_per_book.png
@@ -281,36 +328,17 @@ eda_outputs/top_subjects.png
 
 ---
 
-### Joined Analysis: Interactions and Metadata
+## Long-Tail Analysis
 
-The script merges the interaction data with the item metadata to analyze which authors and publishers are most interacted with.
+The EDA includes a long-tail analysis to study how concentrated user attention is across books.
 
-This joined analysis checks whether metadata is correctly attached to the interaction records and identifies the most interacted authors and publishers.
-
-The merge is successful, with no missing titles after joining the interaction table with the metadata.
-
-Generated plots include:
-
-```text
-eda_outputs/most_interacted_authors.png
-eda_outputs/most_interacted_publishers.png
-```
-
-One limitation is that the author field contains many missing values. As a result, the category `Unknown` can dominate author-level statistics, which reduces the interpretability of author-based analysis unless missing authors are filtered out.
-
----
-
-### Long-Tail Analysis
-
-The EDA includes a long-tail analysis to study how concentrated user attention is across items.
-
-The popularity concentration curve shows that interactions are not evenly distributed across the catalog. The top 20% most popular items account for:
+The popularity concentration curve shows that interactions are not evenly distributed across the catalog. The top 20% most popular books account for:
 
 ```text
 46.07% of all interactions
 ```
 
-This confirms a clear long-tail effect: a relatively small number of books receives a large share of all interactions, while most books receive limited attention.
+This confirms a clear long-tail effect. A relatively small number of books receives a large share of all interactions, while most books receive limited attention.
 
 The long-tail curve is saved as:
 
@@ -318,70 +346,15 @@ The long-tail curve is saved as:
 eda_outputs/long_tail_curve.png
 ```
 
-This result is important for the recommender design because models that rely too heavily on popularity may reinforce popularity bias and reduce exposure to less visible books.
+This result is important because a recommender relying too heavily on popularity may reinforce popularity bias and reduce exposure to less visible books.
 
 ---
 
-### Output Files Generated by the EDA
+## Summary of EDA Findings
 
-The EDA script saves both figures and summary tables in the `eda_outputs/` folder.
+The EDA shows that the dataset is coherent, rich, and suitable for building a recommender system.
 
-Main figures include:
-
-```text
-hist_interactions_per_user.png
-hist_interactions_per_user_log.png
-hist_interactions_per_item.png
-interactions_over_time_monthly.png
-items_missing_values_percentage.png
-top_authors.png
-top_publishers.png
-subjects_per_book.png
-top_subjects.png
-most_interacted_authors.png
-most_interacted_publishers.png
-long_tail_curve.png
-```
-
-Main summary tables include:
-
-```text
-user_activity_describe.csv
-item_popularity_describe.csv
-top_popular_items.csv
-items_missing_percentage.csv
-```
-
----
-
-### How to Run the EDA
-
-The EDA can be run with:
-
-```bash
-python EDA.py
-```
-
-Before running it, the following files must be available:
-
-```text
-kaggle_data/interactions_train.csv
-kaggle_data/items.csv
-```
-
-The script will automatically create the output folder if it does not already exist:
-
-```text
-eda_outputs/
-```
-
----
-
-### Summary of EDA Findings
-
-The EDA shows that the dataset is coherent, rich, and suitable for building a recommender system. The interaction and metadata files are well aligned, and the metadata provides useful content information through titles, publishers, authors, and subjects.
-
-However, the analysis also reveals several classic challenges of recommender systems:
+However, it also reveals several classic challenges:
 
 ```text
 extreme user-item matrix sparsity
@@ -392,475 +365,51 @@ missing values in author and subject metadata
 repeated user-item interactions
 ```
 
-These findings justify the use of a hybrid recommendation approach combining collaborative filtering and content-based information. The EDA also motivates the inclusion of popularity baselines, seen-item filtering, and metadata enrichment in the final interface.
-
-# II. Best Model Description
-
-The best model is a combination between a user-user, item-item, and content-based recommender system. They are weighted `0.3`, `0.3`, and `0.4` respectively in the final recommendation.
-
-This model first creates an interaction matrix from the `interactions_train.csv` provided in the data files. It weights each interaction with an exponential decay function that gives the highest weight to the most recent entries as compared to the most recent one across the entire dataset (Section III.6).
-
-Then, the code cleans the metadata for each book as given in `items.csv`, and creates a content matrix using the title, author, and subject of each book with a TF-IDF approach (Section III.4).
-
-Once the data is prepared, the code calculates the cosine similarity for the:
-- user-user matrix
-- item-item matrix
-- content matrix
-
-and computes the likelihood that the user will interact with an item based on the following formulas provided in the recommender lab:
-
-## Item-item collaborative filtering
-
-$$
-p_u(i)=\frac{\sum_{i'} sim(i,i') \cdot R_u(i')}{\sum_{i'} sim(i,i')}
-$$
-
-## User-user collaborative filtering
-
-$$
-p_u(i)=\frac{\sum_{u'} sim(u,u') \cdot R_{u'}(i)}{\sum_{u'} sim(u,u')}
-$$
-
-Where:
-
-- $p_u(i)$ is the likelihood of user $u$ interacting with item $i$
-- $sim(i,i')$ is the cosine similarity between items $i$ and $i'$
-- $sim(u,u')$ is the cosine similarity between users $u$ and $u'$
-- $R_u(i')$ is 1 if user $u$ has already interacted with item $i'$, and otherwise 0
-- $R_{u'}(i)$ is 1 if user $u'$ has already interacted with item $i$, and otherwise 0
-
-Finally, the code gives a final prediction combining all three models, weighted:
-- `0.3` for user-user
-- `0.3` for item-item
-- `0.4` for content-based
-
-This is the weight combination that gives the best score on the Kaggle leaderboard: **0.1655**.
-
-Sample recommendations based on this model can be collected on our website designed specifically to run this recommender.
-
-Many other approaches were considered while building this model. The following section details the most relevant ones, as well as the precision and recall of the results.
+These findings justify the use of a hybrid recommendation approach combining collaborative filtering and content-based information.
 
 ---
 
-# III. Alternative Models
+# III. Best Model Description
 
-## 1. Summary of Results
-
-The following table presents a summary of the precision and recall for several attempted models. The components and operation of each model are further detailed in the rest of the section.
-
-| Model | Precision @ k=10 | Recall @ k=10 |
-|---|---|---|
-| User-user (R00) | 0.05653 | 0.29065 |
-| Item-item (R00) | 0.05561 | 0.26399 |
-| Hybrid without content (R01) | 0.06082 | 0.29224 |
-| Hybrid with content (R01-with) | 0.06142 | 0.29726 |
-| Nearest neighbor k=150 (R07) without content (0.55, 0.45) | 0.06078 | 0.29213 |
-| Nearest neighbor k=150 (R07) with content (0.55, 0.45) | 0.06110 | 0.29482 |
-| Decay (R08-decay) - Final | 0.06137 | 0.29596 |
-| Embedding | 0.06095 | 0.29336 |
-
-> Rerun nearest neighbor as a save-as of hybrid with content to check if results for neighbor are accurate.
-
----
-
-## 2. User-user and Item-item Models
-
-These two models are the basis of the final code. They are built separately using the same probability formulas presented above, as per the recommender lab.
-
-If run on the full data, the user-user model results in the baseline score of `0.1452` on the leaderboard.
-
----
-
-## 3. Hybrid Model Without Metadata
-
-Once a first simple model was built, the immediate idea was to combine them.
-
-This model provides recommendations based on both:
-- the user-user model
-- the item-item model
-
-For a weight of `0.55` for the user-user model, it provides the score of `0.1643` on the leaderboard.
-
----
-
-## 4. Hybrid Model With Metadata
-
-Another layer of complexity was added to the model with the metadata in the `items.csv` file.
-
-The data included in this model is:
-- title
-- author
-- subject
-
-The subjects are cleaned into distinct words, and punctuation as well as stop words are removed.
-
-All three fields are then combined into one single content field, which is converted into vectors using TF-IDF with the following arguments:
-
-- `max_features = 10000`
-- `ngram_range = (1, 3)`
-- `min_df = 3`
-- `max_df = 0.7`
-
-The precision and recall of this model are superior to the one without content for a combination of weights where the user-user model is `0.5`.
-
-However, the score on the Kaggle leaderboard remains between `0.16` and `0.1638` depending on the weights, which is not an improvement over the previous model.
-
-This content model based on metadata is implemented in the final code nonetheless, as its precision and recall are superior, and the final model performs better with it than without it on the leaderboard.
-
-The `items.csv` metadata was also augmented using the Google Books API. This provided:
-- descriptions of certain books
-- categories for most books
-
-However, other data such as rankings could not be obtained, and the model did not yield a better result than the non-augmented metadata.
-
-For this reason, only non-augmented metadata is used in the final model.
-
----
-
-## 5. Nearest Neighbor
-
-In the interest of improving the user-user model, we attempt to find a similarity between user \(u\) and only \(k\) of its nearest neighbors.
-
-A series of trials performed to obtain the optimal number of neighbors for precision and recall yields:
-
-\[
-k = 150
-\]
-
-However, adding this to the model does not improve the precision and recall compared to the hybrid model.
-
-We assume that:
-- a too-small \(k\), such as `25` or `50`, deprives the model of relevant data
-- hence producing lower precision and recall than larger values such as `150`
-
-But \(k=150\) did not yield a better result because neighbors beyond 150 might not have been relevant enough to improve performance even if included.
-
-For this reason, the final model does not include the k-neighbor approach.
-
----
-
-## 6. Decay
-
-The `interactions_train.csv` file provides information on when a book was read by a specific user.
-
-We use this information to build a decay function that weights the interaction matrix based on the following formula:
-
-$$
-w = e^{-\lambda (t_{\max} - t)}
-$$
-
-Where:
-
-- $\lambda$ is the optimized decay rate
-- $t_{\max}$ is the most recent timestamp in the dataset
-- $t$ is the time at which user $u$ read item $i$
-
-This approach combined with the non-augmented metadata hybrid model results in the best leaderboard score:
-
-$$
-0.1655
-$$
-
----
-
-## 7. Embedding
-
-In an attempt to improve the metadata matrix of the final model, we use SentenceTransformer embeddings instead of the TF-IDF method.
-
-Sentence Transformers generate dense semantic embeddings of the metadata, enabling the recommender system to capture contextual similarity between books beyond the simple keyword matching of TF-IDF.
-
-The model yields a maximum leaderboard score of `0.1643`, for weights shifted more towards the content matrix, with the following distribution:
-
-- `0.2` user-user
-- `0.2` item-item
-- `0.6` content matrix
-
-all other elements of the final code included as described in Section II.
-
-This is not better than the code without embeddings. For this reason, the final recommender model operates on TF-IDF.
-
----
-
-## 8. Discussion of Results
-
-The final code builds recommendations based on a hybrid model of:
-- user-user collaborative filtering
-- item-item collaborative filtering
-- content-based filtering using TF-IDF metadata
-
-Enhancements of this hybrid model were made using a decay function to give more importance to books that were read more recently.
-
-Fine-tuning parameters such as:
-- TF-IDF arguments
-- weight distributions
-
-allowed further optimization of the overall performance.
-
-As a result of the other attempted approaches, we also conclude that the interaction data is more informative than semantic content features.
-
-This is supported by the fact that:
-- embeddings
-- augmented metadata
-
-decreased the performance of the model.
-
----
-
-# IV. User Interface
-
-The user interface is designed using Streamlit.
-
-First, it allows users to obtain recommendations based on `user_preferences.csv`. In other words, the users in the provided dataset act as registered users of the website who can immediately obtain recommendations.
-
-The user interface also provides an option for new users to obtain recommendations.
-
-This option is based on the same recommender, called as a function to compute the similarity of the new user to the already-computed similarity matrices.
-
-The new user can enter as many books as they like.
-
-However, because there is no field allowing the user to indicate when they read the books (as this is not usual information to request from users), this onboarding model does not use the decay function for the new user, while still maintaining this feature in the pretrained recommendation model.
-
-
-# BookMatch AI — Interactive Book Recommender
-
-This project implements a book recommendation system and an interactive Streamlit interface called **BookMatch AI**. The objective is to recommend books to both existing users, who already appear in the interaction dataset, and new users, who do not yet have historical interactions.
-
-The project combines several recommendation strategies, including collaborative filtering, content-based similarity, and a hybrid recommender. The final outputs are made accessible through a user-friendly interface that displays recommendations as book cards, with covers, descriptions, seen items, popular items, and similarity exploration.
-
----
-
-## Project Structure
-
-The main files and folders used in the project are:
+The best model is a hybrid recommender combining:
 
 ```text
-UI_ML.py
-Recommender Main Code.py
-download_covers_2.py
-download_descriptions.py
-
-kaggle_data/
-    items.csv
-    items_with_covers.csv
-    interactions_train.csv
-    item_descriptions.csv
-    covers/
-
-Submission/
-    Hybrid_0.3_0.3_SBB_R08_final.csv
-
-NPYs/
-    UI-item_similarity.npy
-    UI-content_similarity.npy
-
-clean_items.csv
+user-user collaborative filtering
+item-item collaborative filtering
+content-based filtering
 ```
 
----
-
-## Main Files
-
-### `Recommender Main Code.py`
-
-This file contains the main recommender pipeline. It loads the original book metadata and user interaction data, builds the user-item interaction matrix, computes similarity matrices, evaluates recommendation quality, and generates the final recommendation CSV for existing users.
-
-The main input files are:
+The final weights are:
 
 ```text
-kaggle_data/items.csv
+0.3 user-user
+0.3 item-item
+0.4 content-based
+```
+
+This model first creates an interaction matrix from:
+
+```text
 kaggle_data/interactions_train.csv
 ```
 
-The main output file is:
+It then applies an exponential decay function to give more importance to recent interactions.
+
+The metadata from:
 
 ```text
-Submission/Hybrid_0.3_0.3_SBB_R08_final.csv
+kaggle_data/items.csv
 ```
 
-This CSV contains, for each existing user, a ranked list of recommended item IDs.
+is cleaned and transformed into a content matrix using TF-IDF on titles, authors, and subjects.
 
-The recommender also saves the similarity matrices used by the UI:
+Once the data is prepared, the code calculates cosine similarities for:
 
 ```text
-NPYs/UI-item_similarity.npy
-NPYs/UI-content_similarity.npy
+user-user matrix
+item-item matrix
+content matrix
 ```
-
-These `.npy` files allow the Streamlit interface to use the recommender outputs without recomputing the full model.
-
----
-
-### `UI_ML.py`
-
-This is the main Streamlit application. It loads the outputs produced by the recommender model and provides an interactive front-end for exploring recommendations.
-
-The interface supports:
-
-- recommendations for existing users;
-- cold-start recommendations for new users;
-- seen items for existing users;
-- popular items;
-- similarity exploration between books;
-- visual book cards with real covers when available;
-- generated placeholder covers when no real cover exists;
-- book descriptions displayed through expandable sections.
-
-The app can be launched with:
-
-```bash
-streamlit run UI_ML.py
-```
-
----
-
-### `download_covers_2.py`
-
-This script downloads book covers and stores them locally. It uses ISBN when available and falls back to title-author search when needed.
-
-The output is:
-
-```text
-kaggle_data/items_with_covers.csv
-```
-
-This file contains the original item metadata enriched with:
-
-```text
-cover_path
-cover_source
-```
-
-The actual cover images are stored in:
-
-```text
-kaggle_data/covers/
-```
-
-This script does not need to be rerun once the covers have already been downloaded.
-
----
-
-### `download_descriptions.py`
-
-This script downloads book descriptions separately from the covers. It queries the Google Books API using ISBN, title, and author information.
-
-The output is:
-
-```text
-kaggle_data/item_descriptions.csv
-```
-
-This file contains textual metadata such as:
-
-```text
-i
-Title
-Author
-description
-api_title
-api_authors
-api_source
-api_query
-```
-
-Descriptions are kept in a separate CSV to avoid redownloading or recomputing book covers. The Streamlit UI later merges this file with the existing item metadata using the item ID `i`.
-
----
-
-## Data Files
-
-### `kaggle_data/items.csv`
-
-This is the original item metadata file. It contains information about the books, such as title, author, ISBN, publisher, and subjects.
-
-It is used by the recommender model to build content-based representations of books.
-
----
-
-### `kaggle_data/interactions_train.csv`
-
-This file contains the historical user-item interactions.
-
-It includes columns such as:
-
-```text
-u
-i
-t
-```
-
-where:
-
-- `u` is the user ID;
-- `i` is the item ID;
-- `t` is the interaction timestamp.
-
-This file is used to build the user-item interaction matrix.
-
----
-
-### `kaggle_data/items_with_covers.csv`
-
-This file contains the item metadata enriched with local cover paths. It is used by the Streamlit UI to display real book covers when available.
-
----
-
-### `kaggle_data/item_descriptions.csv`
-
-This file contains book descriptions downloaded from the Google Books API. It is merged with the item metadata in the UI.
-
----
-
-### `clean_items.csv`
-
-This file contains cleaned metadata, especially cleaned titles and authors. It is merged with `items_with_covers.csv` in the UI to improve display quality.
-
----
-
-### `Submission/Hybrid_0.3_0.3_SBB_R08_final.csv`
-
-This file contains the final precomputed recommendations for existing users. Each row corresponds to one user and contains a space-separated list of recommended item IDs.
-
-Example structure:
-
-```text
-user_id,recommendation
-0,123 456 789 ...
-1,42 91 302 ...
-```
-
-The UI uses this file directly for existing-user recommendations.
-
----
-
-### `NPYs/UI-item_similarity.npy`
-
-This file stores the item-item collaborative filtering similarity matrix. It is computed offline in the recommender code and loaded by the UI.
-
-It is used for:
-
-- new-user recommendations;
-- similarity exploration.
-
----
-
-### `NPYs/UI-content_similarity.npy`
-
-This file stores the content-based similarity matrix. It is computed offline from the book metadata.
-
-It is used for:
-
-- new-user recommendations.
-
----
-
-## Recommender Logic
-
-The recommender uses a hybrid approach combining three sources of information:
-
-1. user-user collaborative filtering;
-2. item-item collaborative filtering;
-3. content-based similarity.
 
 The final hybrid prediction score is computed as:
 
@@ -868,153 +417,292 @@ The final hybrid prediction score is computed as:
 final_prediction = alpha * user_prediction + beta * item_prediction + (1 - alpha - beta) * content_prediction
 ```
 
-In the final version used for the UI, the recommendations are generated offline and saved into:
+The final model gives the best Kaggle leaderboard score:
+
+```text
+0.1655
+```
+
+The final recommendation file used by the interface is:
 
 ```text
 Submission/Hybrid_0.3_0.3_SBB_R08_final.csv
 ```
 
-This design avoids recomputing the full recommender inside the Streamlit app.
+---
+
+# IV. Alternative Models
+
+## Summary of Results
+
+| Model | Precision @ k=10 | Recall @ k=10 |
+|---|---:|---:|
+| User-user | 0.05653 | 0.29065 |
+| Item-item | 0.05561 | 0.26399 |
+| Hybrid without content | 0.06082 | 0.29224 |
+| Hybrid with content | 0.06120 | 0.29597 |
+| Nearest neighbor k=150 without content | 0.06078 | 0.29213 |
+| Nearest neighbor k=150 with content | 0.06110 | 0.29482 |
+| Decay - Final | 0.06137 | 0.29596 |
+| Embedding | 0.06095 | 0.29336 |
+
+---
+
+## User-user and Item-item Models
+
+The user-user and item-item models are the basis of the recommender pipeline. They are built separately using collaborative filtering formulas from the recommender lab.
+
+The user-user model compares users based on their interaction profiles, while the item-item model compares books based on the users who interacted with them.
+
+---
+
+## Hybrid Model Without Metadata
+
+After building user-user and item-item models separately, the next step was to combine them into a hybrid collaborative model.
+
+This model provides recommendations based on both user similarity and item similarity. It improves the leaderboard score compared with the standalone models.
+
+---
+
+## Hybrid Model With Metadata
+
+Another layer of complexity was added using the metadata from:
+
+```text
+kaggle_data/items.csv
+```
+
+The content-based part uses:
+
+```text
+title
+author
+subjects
+```
+
+These fields are cleaned, combined into one text field, and vectorized using TF-IDF.
+
+The TF-IDF parameters include:
+
+```text
+max_features = 10000
+ngram_range = (1, 3)
+min_df = 3
+max_df = 0.7
+```
+
+The content-based model improves the precision and recall compared with the hybrid model without content. However, the leaderboard score varies depending on the weights.
+
+---
+
+## Recency Decay
+
+The interaction file contains timestamps, which provide information about when a user interacted with a book.
+
+To account for changing user interests over time, the model applies an exponential decay function:
+
+$$
+w = e^{-\lambda (t_{\max} - t)}
+$$
+
+where:
+
+```text
+lambda = optimized decay rate
+t_max = most recent timestamp in the dataset
+t = timestamp of the interaction
+```
+
+This gives more importance to recent interactions and improves the final performance.
+
+---
+
+## Nearest Neighbor
+
+A nearest-neighbor version of the user-user recommender was also tested. The idea was to compare a user only with the k most similar users instead of the full user database.
+
+The best value tested was:
+
+```text
+k = 150
+```
+
+However, this approach did not improve the results compared with the full hybrid model. For this reason, it was not retained in the final recommender.
+
+---
+
+## Sentence Embeddings
+
+SentenceTransformer embeddings were tested as an alternative to TF-IDF for representing book metadata.
+
+The goal was to capture semantic similarity beyond keyword matching. However, the embedding-based model did not outperform the TF-IDF-based model.
+
+For this reason, the final model uses TF-IDF.
+
+---
+
+## Discussion of Results
+
+The final recommender combines collaborative filtering, content-based similarity, and recency weighting.
+
+The results suggest that interaction data is the strongest signal in this dataset. Metadata improves interpretability and adds useful information, but embeddings and augmented metadata did not improve the final leaderboard score.
+
+The final model therefore keeps a balance between:
+
+```text
+user-user collaborative filtering
+item-item collaborative filtering
+TF-IDF content similarity
+recency decay
+```
+
+---
+
+# V. User Interface
+
+The user interface is implemented with Streamlit in:
+
+```text
+UI_ML.py
+```
+
+Its role is to make the recommender system easier to explore, test, and present through an interactive web application.
+
+The interface supports:
+
+```text
+recommendations for existing users
+cold-start recommendations for new users
+seen items for existing users
+popular items
+similarity exploration between books
+book cards with covers
+book descriptions
+```
 
 ---
 
 ## Existing-User Recommendation Flow
 
-For users already present in the training dataset, the interface does not recompute recommendations. Instead, it loads the precomputed CSV:
+For existing users, the app does not recompute the recommender.
+
+Instead, it directly loads the final precomputed recommendation file:
 
 ```text
 Submission/Hybrid_0.3_0.3_SBB_R08_final.csv
 ```
 
-The user selects a user ID in the interface. The app then retrieves the recommendation list corresponding to that user and merges the recommended item IDs with book metadata.
+Each row contains a user ID and a ranked list of recommended item IDs.
 
-This is handled by:
-
-```python
-get_recommendations_from_csv(user_id, recommendations_df, items, top_k)
-```
-
-The recommendations are then displayed as book cards.
+When a user selects an existing user ID, the app retrieves the corresponding recommendation list, merges the item IDs with the book metadata, and displays the results as visual book cards.
 
 ---
 
 ## Seen Items
 
-For existing users, the UI also displays the books that the user has already interacted with.
+The app also displays books already seen by the selected user.
 
-These are not recommendations. They come directly from:
+These seen items come directly from:
 
 ```text
 kaggle_data/interactions_train.csv
 ```
 
-The app reconstructs a user-item interaction matrix:
+To make the app compatible with Streamlit Cloud memory limits, the deployed version does not build a dense user-item matrix. Instead, it creates a lightweight lookup dictionary mapping each user to the set of books they have already interacted with.
 
-```python
-def create_data_matrix(data, n_users, n_items):
-    matrix = np.zeros((n_users, n_items))
-    matrix[data["u"].values, data["i"].values] = 1
-    return matrix
-```
-
-For a selected user, seen items are identified with:
-
-```python
-seen_items = np.where(matrix[int(user_id)] == 1)[0]
-```
-
-The resulting item IDs are merged with the book metadata and displayed in the `Seen items` tab.
-
-The interface also includes a `Remove seen items` option. When enabled, books already seen by the selected user are removed from the displayed recommendation list.
+This avoids creating a large users-by-items matrix in memory.
 
 ---
 
 ## New-User Recommendation Flow
 
-For new users, no historical interaction profile exists in the training data. Therefore, the interface implements a cold-start recommendation flow.
+For new users, no historical interaction profile exists in the dataset.
 
-The user can search for a book category, title, author, or subject, and then select books they have already read and enjoyed.
+The interface therefore implements a cold-start recommendation workflow. A new user can search for books by:
 
-The selected books are stored in Streamlit session state:
-
-```python
-st.session_state.liked_item_ids_new_user
+```text
+title
+author
+subject
+category keyword
 ```
 
-This allows the user to search across multiple categories without losing previously selected books.
+The user can then select books they have read and enjoyed. These selected books are stored temporarily in Streamlit session state.
 
-For example, a user can first select romance books, then search for politics or history books, and keep all selected books in the same temporary profile.
+This allows a user to search across several categories and gradually build a temporary preference profile.
 
 ---
 
-## New-User Scoring
+## Lightweight New-User Recommendation
 
-For new users, the recommendation score combines two similarity sources:
-
-```python
-final_scores = alpha * item_scores + (1 - alpha) * content_scores
-```
-
-where:
-
-- `item_scores` are based on item-item collaborative filtering;
-- `content_scores` are based on content-based similarity;
-- `alpha` controls the balance between collaborative similarity and content similarity.
-
-The two similarity matrices are loaded from:
+The original local version of the interface used full `.npy` similarity matrices:
 
 ```text
 NPYs/UI-item_similarity.npy
 NPYs/UI-content_similarity.npy
 ```
 
-They are loaded using:
+However, these files were too large for Streamlit Cloud deployment.
 
-```python
-item_sim = np.load("NPYs/UI-item_similarity.npy", mmap_mode="r")
-content_sim = np.load("NPYs/UI-content_similarity.npy", mmap_mode="r")
+The deployed version therefore uses lightweight precomputed top-similarity CSV files:
+
+```text
+kaggle_data/top_item_similarities.csv
+kaggle_data/top_content_similarities.csv
 ```
 
-The use of `mmap_mode="r"` avoids loading the full matrices directly into memory, which is useful because the matrices are large.
+For each selected book, the app retrieves its most similar books according to:
 
-The new-user recommendation function creates a temporary user vector where selected books are marked as liked. The selected books are then excluded from the final recommendation list so that the app does not recommend books the user has already selected.
+```text
+item-item collaborative similarity
+content-based similarity
+```
+
+The final score combines both sources:
+
+```python
+score = alpha * item_similarity_score + (1 - alpha) * content_similarity_score
+```
+
+where `alpha` controls the balance between collaborative similarity and content similarity.
+
+This makes the new-user recommender much lighter and suitable for deployment.
 
 ---
 
-## Book Search for New Users
+## Popular Items
 
-The new-user section includes a flexible search feature. Instead of searching only by title, the UI searches across several metadata fields when available, including:
+The interface includes a popular-items section.
 
-```text
-Title
-Author
-Subjects
-concepts
-```
+This section displays books ranked by the number of historical interactions.
 
-This allows users to search for broad categories such as:
+It serves as a simple non-personalized baseline and helps compare personalized recommendations with popularity-based recommendations.
 
-```text
-romance
-politics
-history
-science
-business
-```
+---
 
-If a user enters a query that returns no result, the UI displays the following warning:
+## Similarity Exploration
+
+The similarity-exploration section allows users to select any book from the catalog and display the most similar books.
+
+This feature is not personalized. Instead, it answers the question:
 
 ```text
-There may be a typo in your search. Please try again. If the problem persists, try another category.
+Which books are most similar to this selected book?
 ```
 
-This improves usability by helping users understand why no books are displayed.
+The deployed version uses:
+
+```text
+kaggle_data/top_item_similarities.csv
+```
+
+instead of loading the full item-item similarity matrix.
 
 ---
 
 ## Book Cards and Visual Design
 
-The UI displays books as visual cards.
+The UI displays recommendations as visual book cards.
 
 Each card can include:
 
@@ -1027,15 +715,19 @@ score or similarity score
 description expander
 ```
 
-If a real cover is available, the UI displays it using the local `cover_path` from:
+If a real cover is available, it is displayed using the local `cover_path` from:
 
 ```text
 kaggle_data/items_with_covers.csv
 ```
 
-If no cover is available, the UI generates a custom placeholder cover using CSS. The placeholder is designed to look like an old book cover, with a cream background, decorative borders, and the book title displayed in the center.
+If no real cover is available, the UI generates a CSS-based placeholder cover so that the interface remains visually consistent.
 
-This ensures that all books are displayed in a visually consistent way, even when real covers are missing.
+The decorative library background image used in the UI comes from:
+
+```text
+https://www.elaee.com/2017/08/21/28089-plus-belles-bibliotheques-monde-quil-ny-a-linternet-vie
+```
 
 ---
 
@@ -1053,115 +745,264 @@ This file is generated by:
 download_descriptions.py
 ```
 
-Inside the UI, descriptions are merged with the item metadata using the item ID `i`:
+Descriptions are retrieved using external sources such as Open Library and Google Books when available. When no external description is found, the script creates a fallback description from the local metadata, such as title, author, publisher, and subjects.
 
-```python
-items = items.merge(
-    descriptions[description_cols],
-    on="i",
-    how="left"
-)
-```
+Descriptions are merged with the item metadata in the Streamlit app using the item ID `i`.
 
-Each book card includes a `View description` expander.
-
-If a description is available, it is displayed when the user opens the expander. Otherwise, the UI displays:
+Each book card includes a `View description` expander. If a description is available, it is displayed inside the expander. Otherwise, the UI displays:
 
 ```text
 No description available for this book.
 ```
 
-The relevant UI logic is:
+---
 
-```python
-description_text = (
-    str(row["description"])
-    if "description" in row
-    and pd.notna(row["description"])
-    and str(row["description"]).strip()
-    else "No description available for this book."
-)
+# VI. Project Structure
 
-with st.expander("View description"):
-    st.write(description_text)
+The main files and folders are:
+
+```text
+UI_ML.py
+Recommender Main Code.py
+EDA.py
+download_covers_2.py
+download_descriptions.py
+requirements.txt
+
+kaggle_data/
+    items.csv
+    items_with_covers.csv
+    interactions_train.csv
+    item_descriptions.csv
+    top_item_similarities.csv
+    top_content_similarities.csv
+    sample_submission.csv
+    covers/
+
+Submission/
+    Hybrid_0.3_0.3_SBB_R08_final.csv
+
+eda_outputs/
+    figures and summary tables
+
+clean_items.csv
+```
+
+The full `.npy` similarity matrices were used during local experimentation, but the deployed Streamlit app uses lightweight top-similarity CSV files to avoid memory issues on Streamlit Cloud.
+
+---
+
+# VII. Main Files
+
+## `EDA.py`
+
+This file performs the exploratory data analysis.
+
+It loads:
+
+```text
+kaggle_data/interactions_train.csv
+kaggle_data/items.csv
+```
+
+and generates figures and summary tables in:
+
+```text
+eda_outputs/
+```
+
+Run it with:
+
+```bash
+python EDA.py
 ```
 
 ---
 
-## Popular Items
+## `Recommender Main Code.py`
 
-The UI includes a `Popular items` section.
+This file contains the main recommender pipeline.
 
-This section provides a simple non-personalized baseline by ranking books according to the number of historical interactions.
+It loads the original book metadata and user interaction data, builds recommender models, evaluates them, and generates the final recommendation CSV.
 
-Popularity is computed from the interaction matrix:
-
-```python
-popularity = matrix.sum(axis=0)
-```
-
-The most popular books are then displayed as book cards.
-
-This section is useful for comparing personalized recommendations with a simple popularity-based recommendation strategy.
-
----
-
-## Similarity Exploration
-
-The `Similarity exploration` section allows users to select any book from the database and display the most similar books according to the item-item similarity matrix.
-
-This feature is different from personalized recommendation. It is not based on a user profile. Instead, it answers the question:
+Main inputs:
 
 ```text
-Which books are most similar to this selected book?
+kaggle_data/items.csv
+kaggle_data/interactions_train.csv
 ```
 
-The selected book is compared to all other books using:
-
-```python
-sim_scores = item_sim[int(i)].copy()
-sim_scores[int(i)] = -np.inf
-```
-
-The selected item itself is excluded by setting its similarity score to negative infinity. The app then ranks all other books by similarity score and displays the top results.
-
-To make this feature easier to interpret, the dropdown menu displays:
+Main output:
 
 ```text
-item_id - title — author
-```
-
-The UI also displays an explanatory sentence such as:
-
-```text
-Here are the books most similar to [selected title] by [selected author] (item [item_id] in the database).
+Submission/Hybrid_0.3_0.3_SBB_R08_final.csv
 ```
 
 ---
 
-## How to Run the Project
+## `UI_ML.py`
 
-### 1. Generate or update recommendations
+This is the main Streamlit application.
 
-Run the recommender script:
+It loads the recommender outputs and provides the interactive interface.
+
+Run it locally with:
+
+```bash
+streamlit run UI_ML.py
+```
+
+---
+
+## `download_covers_2.py`
+
+This script downloads book covers and stores them locally.
+
+The output file is:
+
+```text
+kaggle_data/items_with_covers.csv
+```
+
+The cover images are stored in:
+
+```text
+kaggle_data/covers/
+```
+
+This script can take a long time and does not need to be rerun if the covers are already downloaded.
+
+---
+
+## `download_descriptions.py`
+
+This script retrieves book descriptions without downloading covers.
+
+The output file is:
+
+```text
+kaggle_data/item_descriptions.csv
+```
+
+The script uses external sources when available and fallback descriptions when no external description is found.
+
+---
+
+# VIII. Data Files
+
+## `kaggle_data/items.csv`
+
+Original book metadata.
+
+Used for content-based recommendation and metadata display.
+
+---
+
+## `kaggle_data/interactions_train.csv`
+
+Historical user-item interactions.
+
+Used to build collaborative filtering models and identify seen items.
+
+---
+
+## `kaggle_data/items_with_covers.csv`
+
+Book metadata enriched with local cover paths.
+
+Used by the Streamlit UI to display book covers.
+
+---
+
+## `kaggle_data/item_descriptions.csv`
+
+Book descriptions used in the Streamlit UI.
+
+---
+
+## `kaggle_data/top_item_similarities.csv`
+
+Precomputed top item-item similar books for each item.
+
+Used by the deployed Streamlit app for:
+
+```text
+new-user recommendations
+similarity exploration
+```
+
+---
+
+## `kaggle_data/top_content_similarities.csv`
+
+Precomputed top content-based similar books for each item.
+
+Used by the deployed Streamlit app for:
+
+```text
+new-user recommendations
+```
+
+---
+
+## `Submission/Hybrid_0.3_0.3_SBB_R08_final.csv`
+
+Final precomputed recommendations for existing users.
+
+Each row contains:
+
+```text
+user_id
+recommendation
+```
+
+where `recommendation` is a space-separated list of recommended item IDs.
+
+---
+
+## `clean_items.csv`
+
+Cleaned metadata used to improve title and author display in the interface.
+
+---
+
+# IX. How to Run the Project
+
+## 1. Install dependencies
+
+Install the required packages with:
+
+```bash
+pip install -r requirements.txt
+```
+
+---
+
+## 2. Run the EDA
+
+```bash
+python EDA.py
+```
+
+This creates the `eda_outputs/` folder and saves the EDA figures and summary tables.
+
+---
+
+## 3. Run the recommender
 
 ```bash
 python "Recommender Main Code.py"
 ```
 
-This generates or updates:
+This generates or updates the final recommendation file:
 
 ```text
 Submission/Hybrid_0.3_0.3_SBB_R08_final.csv
-NPYs/UI-item_similarity.npy
-NPYs/UI-content_similarity.npy
 ```
 
 ---
 
-### 2. Download covers if needed
-
-If the cover file does not already exist, run:
+## 4. Download covers if needed
 
 ```bash
 python download_covers_2.py
@@ -1174,13 +1015,11 @@ kaggle_data/items_with_covers.csv
 kaggle_data/covers/
 ```
 
-This step can take a long time and does not need to be repeated if covers are already downloaded.
+This step can take a long time and does not need to be repeated if covers are already available.
 
 ---
 
-### 3. Download descriptions if needed
-
-Run:
+## 5. Download descriptions if needed
 
 ```bash
 python download_descriptions.py
@@ -1192,13 +1031,9 @@ This generates:
 kaggle_data/item_descriptions.csv
 ```
 
-This script only downloads book descriptions and does not redownload covers.
-
 ---
 
-### 4. Launch the Streamlit app
-
-Run:
+## 6. Launch the Streamlit app locally
 
 ```bash
 streamlit run UI_ML.py
@@ -1208,7 +1043,7 @@ The app will open in the browser.
 
 ---
 
-## Required Files Before Running the UI
+# X. Required Files Before Running the UI
 
 Before launching the interface, the following files should be available:
 
@@ -1216,30 +1051,61 @@ Before launching the interface, the following files should be available:
 kaggle_data/items_with_covers.csv
 kaggle_data/item_descriptions.csv
 kaggle_data/interactions_train.csv
+kaggle_data/top_item_similarities.csv
+kaggle_data/top_content_similarities.csv
 clean_items.csv
 Submission/Hybrid_0.3_0.3_SBB_R08_final.csv
-NPYs/UI-item_similarity.npy
-NPYs/UI-content_similarity.npy
 ```
 
-If one of these files is missing, the UI may not run correctly or some features may be unavailable.
+The `.npy` similarity matrices are not required for the deployed Streamlit app. They were replaced by lightweight CSV files containing only the top similar items for each book.
 
 ---
 
-## Cache Note
+# XI. Streamlit Cloud Deployment
+
+The Streamlit app is deployed from the GitHub repository.
+
+The main Streamlit file is:
+
+```text
+UI_ML.py
+```
+
+Because Streamlit Cloud has memory limits, the deployed version avoids loading full dense similarity matrices. Instead, it uses:
+
+```text
+kaggle_data/top_item_similarities.csv
+kaggle_data/top_content_similarities.csv
+```
+
+This makes the app lighter and more stable online.
+
+When changes are made locally, they must be pushed to GitHub:
+
+```bash
+git add .
+git commit -m "Update Streamlit app"
+git push
+```
+
+Streamlit Cloud then pulls the latest version from GitHub and updates the app.
+
+---
+
+# XII. Cache Note
 
 The Streamlit app uses caching to make loading faster.
 
-If a CSV file is updated, for example the recommendation CSV or the description CSV, it may be necessary to clear the Streamlit cache or restart the Streamlit app so that the new file is loaded correctly.
+If a CSV file is updated, for example the recommendation CSV or the description CSV, it may be necessary to clear the Streamlit cache or reboot the app from Streamlit Cloud.
 
 ---
 
-## Summary
+# XIII. Summary
 
 This project combines an offline recommender model with an interactive Streamlit interface.
 
-The recommender model computes hybrid recommendations and similarity matrices. The UI then uses these precomputed outputs to provide a fast and user-friendly application.
+The recommender model computes hybrid recommendations based on collaborative filtering, content-based similarity, and recency weighting. The Streamlit interface then makes the recommender accessible through a visual and interactive app.
 
-Existing users receive recommendations from the precomputed hybrid recommendation CSV. New users receive cold-start recommendations based on selected books and precomputed similarity matrices. The interface also improves interpretability by showing seen items, popular items, similar books, book covers, and book descriptions.
+Existing users receive recommendations from the precomputed hybrid recommendation CSV. New users receive cold-start recommendations based on selected books and lightweight top-similarity files. The interface also improves interpretability by showing seen items, popular books, similar books, covers, and descriptions.
 
-Overall, BookMatch AI turns the recommender system into an interactive tool that is easier to understand, test, and present.
+Overall, BookMatch AI turns the recommender system into an interactive tool that is easier to understand, test, present, and use.

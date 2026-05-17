@@ -6,18 +6,9 @@ import numpy as np
 items=pd.read_csv("UI-items.csv")
 item_sim=np.load("NPYs/UI-item_similarity.npy")
 content_sim=np.load("NPYs/UI-content_similarity.npy")
-# user_sim=np.load("kaggle_data/UI-user_similarity.npy")
+
 
 def recommend_new_user(selected_books, item_similarity, content_sim, top_k=10, alpha=0.5):
-    """
-    selected_books:
-        list of item indices already read by the user
-
-    alpha:
-        weight for item-item CF
-        (1-alpha) for content similarity
-    """
-
     n_items = item_similarity.shape[0]
     
     #interaction matrix for new user
